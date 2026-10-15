@@ -96,8 +96,6 @@ curl --fail-with-body 'https://your-project.vercel.app/v1/systemone' \
 
 其他上游错误会原样返回 TypeSafe 的状态码，响应体中包含 `upstreamStatus` 和 `detail`。
 
-单次请求总期限 30 秒，每次上游调用最多等待 10 秒，每个 key 在同一次请求中最多尝试一次。
-
 ## License
 
 [MIT](LICENSE)

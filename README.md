@@ -96,8 +96,6 @@ A successful response contains `model`, `answers` and `usage`. In the example ab
 
 Other upstream errors are passed through with TypeSafe's status code, and the response body includes `upstreamStatus` and `detail`.
 
-Each request has a 30-second overall deadline, each upstream call waits at most 10 seconds, and each key is tried at most once per request.
-
 ## License
 
 [MIT](LICENSE)
