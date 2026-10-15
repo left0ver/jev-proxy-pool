@@ -5,13 +5,13 @@
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-22.x-339933?logo=node.js&amp;logoColor=white" alt="Node.js"></a>
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript"></a>
   <a href="https://hono.dev"><img src="https://img.shields.io/badge/Hono-4-E36002?logo=hono&amp;logoColor=white" alt="Hono"></a>
-  <a href="https://github.com/left0ver/jev_proxy_pool"><img src="https://img.shields.io/github/stars/left0ver/jev_proxy_pool?style=flat" alt="GitHub stars"></a>
+  <a href="https://github.com/left0ver/jev-proxy-pool"><img src="https://img.shields.io/github/stars/left0ver/jev-proxy-pool?style=flat" alt="GitHub stars"></a>
 </p>
 
 <p align="center">通过统一的 HTTP 接口调用 TypeSafe Jev，自动轮换 API key，并在网页中管理 key。</p>
 
 <p align="center">
-  <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev_proxy_pool&amp;project-name=jev-proxy-pool&amp;repository-name=jev_proxy_pool&amp;env=ADMIN_PASSWORD,AUTHORIZATION_TOKEN&amp;envLink=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev_proxy_pool%23environment-variables"><img src="https://vercel.com/button" alt="Deploy with Vercel"></a>
+  <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool&amp;project-name=jev-proxy-pool&amp;repository-name=jev-proxy-pool&amp;env=ADMIN_PASSWORD,AUTHORIZATION_TOKEN&amp;envLink=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool%23environment-variables"><img src="https://vercel.com/button" alt="Deploy with Vercel"></a>
 </p>
 
 ## 特性
@@ -38,8 +38,8 @@
 需要 Node.js 22。
 
 ```bash
-git clone https://github.com/left0ver/jev_proxy_pool.git
-cd jev_proxy_pool
+git clone https://github.com/left0ver/jev-proxy-pool.git
+cd jev-proxy-pool
 npm ci
 cp .env.example .env   # 填写 ADMIN_PASSWORD 和 AUTHORIZATION_TOKEN
 npm run dev
