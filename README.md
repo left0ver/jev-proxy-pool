@@ -1,14 +1,18 @@
-# Jev Proxy Pool
+<h1 align="center">Jev Proxy Pool</h1>
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-22.x-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Hono](https://img.shields.io/badge/Hono-4-E36002?logo=hono&logoColor=white)](https://hono.dev)
-[![GitHub stars](https://img.shields.io/github/stars/left0ver/jev_proxy_pool?style=flat)](https://github.com/left0ver/jev_proxy_pool)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-22.x-339933?logo=node.js&amp;logoColor=white" alt="Node.js"></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript"></a>
+  <a href="https://hono.dev"><img src="https://img.shields.io/badge/Hono-4-E36002?logo=hono&amp;logoColor=white" alt="Hono"></a>
+  <a href="https://github.com/left0ver/jev_proxy_pool"><img src="https://img.shields.io/github/stars/left0ver/jev_proxy_pool?style=flat" alt="GitHub stars"></a>
+</p>
 
-通过统一的 HTTP 接口调用 TypeSafe Jev，自动轮换 API key，并在网页中管理 key。
+<p align="center">通过统一的 HTTP 接口调用 TypeSafe Jev，自动轮换 API key，并在网页中管理 key。</p>
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev_proxy_pool&project-name=jev-proxy-pool&repository-name=jev_proxy_pool&env=ADMIN_PASSWORD,AUTHORIZATION_TOKEN&envLink=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev_proxy_pool%23environment-variables)
+<p align="center">
+  <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev_proxy_pool&amp;project-name=jev-proxy-pool&amp;repository-name=jev_proxy_pool&amp;env=ADMIN_PASSWORD,AUTHORIZATION_TOKEN&amp;envLink=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev_proxy_pool%23environment-variables"><img src="https://vercel.com/button" alt="Deploy with Vercel"></a>
+</p>
 
 ## 特性
 
