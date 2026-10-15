@@ -37,7 +37,7 @@
 
         <div class="workspace">
           <section class="panel keys-panel" aria-labelledby="keys-title">
-            <div class="panel-heading"><div><h2 id="keys-title">Key 列表 <span id="list-count" class="count-badge">0</span></h2><p id="limit-description" class="field-hint"></p></div><div class="toolbar"><button id="check-all-button" class="button quiet small" type="button" title="检测当前实例的全部 key，包括已停用和搜索结果之外的 key" disabled>检测全部</button><button id="export-button" class="button quiet small" type="button">导出全部</button><button id="refresh-button" class="button quiet small" type="button">刷新列表</button></div></div>
+            <div class="panel-heading"><div><h2 id="keys-title">Key 列表 <span id="list-count" class="count-badge">0</span></h2><p id="limit-description" class="field-hint"></p></div><div class="toolbar"><button id="check-all-button" class="button quiet small" type="button" title="检测全部 key，包括已停用和搜索结果之外的 key" disabled>检测全部</button><button id="export-button" class="button quiet small" type="button">导出全部</button><button id="refresh-button" class="button quiet small" type="button">刷新列表</button></div></div>
             <div class="search-row"><label class="sr-only" for="search">搜索名称或 key</label><input id="search" type="search" placeholder="搜索名称或 key" autocomplete="off"><span id="updated-at" class="updated-at"></span></div>
             <p id="dashboard-error" class="error-message panel-message" role="alert"></p>
             <p id="notice" class="notice panel-message" role="status" aria-live="polite"></p>
@@ -57,7 +57,7 @@
               <button id="add-button" class="button primary full-width" type="submit">添加 key <span aria-hidden="true">＋</span></button>
             </form>
             <div class="import-section"><label for="import-file">从 JSONL 文件导入</label><input id="import-file" type="file" accept=".jsonl,.ndjson,application/x-ndjson"><p class="field-hint">导入会添加文件中的全部 key，重复 key 会提示错误。</p></div>
-            <div class="memory-note"><p>配置保存在当前实例内存中。请导出备份，实例重新启动后可以重新导入。</p><p id="instance-label"></p></div>
+            <div class="memory-note"><p>配置保存在 Redis 中，重新部署后仍然保留。建议定期导出备份。</p></div>
           </aside>
         </div>
       </section>

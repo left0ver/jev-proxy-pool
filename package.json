@@ -7,8 +7,8 @@
     "lib": "lib"
   },
   "scripts": {
-    "dev": "node --env-file=.env --import tsx dev.ts",
-    "test": "node --import tsx --test tests/*.test.ts",
+    "dev": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --import tsx dev.ts",
+    "test": "node --env-file-if-exists=.env.local --import tsx --test tests/*.test.ts",
     "typecheck": "tsc"
   },
   "keywords": [],
@@ -21,6 +21,7 @@
   "dependencies": {
     "@hono/node-server": "^2.1.5",
     "@typesafe-ai/sdk": "^0.7.0",
+    "@upstash/redis": "^1.39.0",
     "hono": "^4.13.13",
     "jsonl-parse-stringify": "^1.0.3",
     "zod": "^4.6.7"

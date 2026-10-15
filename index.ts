@@ -11,38 +11,35 @@ const app = new Hono();
 app.use("*", async (context, next) => {
   context.header("Cache-Control", "no-store");
   context.header("X-Content-Type-Options", "nosniff");
-  context.header("X-Jev-Instance", keyStore.instanceId);
   await next();
 });
 
 app.use("/api/admin/*", async (context, next) => {
   if (!process.env.ADMIN_PASSWORD) return privateJson({ error: "尚未配置 ADMIN_PASSWORD" }, 503);
   if (!adminAuthorized(context.req.raw)) return privateJson({ error: "管理密码不正确，请重新登录" }, 401);
-  const expectedInstance = context.req.header("X-Jev-Instance");
-  if (expectedInstance && expectedInstance !== keyStore.instanceId) return privateJson({ error: "请求由另一个实例处理，请刷新列表后重试" }, 409);
   await next();
 });
 app.use("/api/admin/*", bodyLimit({ maxSize: 2 * 1024 * 1024, onError: () => privateJson({ error: "文件或请求超过 2 MiB" }, 413) }));
 
-app.get("/api/admin/keys", () => privateJson(keyStore.snapshot()));
+app.get("/api/admin/keys", async () => privateJson(await keyStore.snapshot()));
 app.post("/api/admin/keys", async (context) => {
   const body = z.object({ keys: z.array(z.unknown()) }).strict().parse(await context.req.json());
-  const added = keyStore.add(body.keys);
-  return privateJson({ added, ...keyStore.snapshot() }, 201);
+  const added = await keyStore.add(body.keys);
+  return privateJson({ added, ...await keyStore.snapshot() }, 201);
 });
 app.post("/api/admin/keys/import", async (context) => {
-  const added = keyStore.import(await context.req.text());
-  return privateJson({ added, ...keyStore.snapshot() }, 201);
+  const added = await keyStore.import(await context.req.text());
+  return privateJson({ added, ...await keyStore.snapshot() }, 201);
 });
-app.delete("/api/admin/keys/:id", (context) => {
-  keyStore.remove(context.req.param("id"));
-  return privateJson(keyStore.snapshot());
+app.delete("/api/admin/keys/:id", async (context) => {
+  await keyStore.remove(context.req.param("id"));
+  return privateJson(await keyStore.snapshot());
 });
 app.post("/api/admin/keys/:id/check", async (context) => {
   const check = await checkKey(context.req.param("id"), context.req.raw.signal);
-  return privateJson({ check, ...keyStore.snapshot() });
+  return privateJson({ check, ...await keyStore.snapshot() });
 });
-app.get("/api/admin/keys/export", () => new Response(keyStore.export(), {
+app.get("/api/admin/keys/export", async () => new Response(await keyStore.export(), {
   headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Content-Disposition": 'attachment; filename="jev-keys.jsonl"', "Cache-Control": "no-store" },
 }));
 

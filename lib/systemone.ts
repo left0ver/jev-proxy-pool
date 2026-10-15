@@ -67,25 +67,25 @@ export async function POST(request: Request): Promise<Response> {
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(30000)]);
     while (performance.now() < deadline) {
       signal.throwIfAborted();
-      const lease = keyStore.acquire(attempted);
+      const lease = await keyStore.acquire(attempted);
       attempted.add(lease.id);
       try {
         const client = new TypeSafeClient({ apiKey: lease.key, baseURL: "https://api.typesafe.ai", retry: { maxRetries: 0 }, timeout: Math.max(1, Math.min(10000, deadline - performance.now())) });
         const result = await client.systemOne(input, { signal });
-        lease.succeed();
+        await lease.succeed();
         return json({ model: result.model, answers: result.answers, usage: result.usage });
       } catch (error) {
         if (error instanceof APIError && (error.status === 401 || error.status === 402)) {
-          lease.disable(error.status === 401 ? "API key 无效" : "组织可用额度不足");
+          await lease.disable(error.status === 401 ? "API key 无效" : "组织可用额度不足");
           continue;
         }
         if (error instanceof RateLimitError) {
-          lease.coolDown(error.retryAfterMs);
+          await lease.coolDown(error.retryAfterMs);
           continue;
         }
         throw error;
       } finally {
-        lease.release();
+        await lease.release();
       }
     }
     return json({ error: "请求超过 30 秒期限" }, 504);

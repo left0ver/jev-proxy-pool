@@ -1,3 +1,4 @@
+import "./env.js";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
@@ -26,12 +27,11 @@ test("管理接口认证、添加、导出、导入和删除", async () => {
   assert.ok(document.includes(keys[1]));
   const conflict = await app.request("/api/admin/keys", { method: "POST", headers, body: JSON.stringify({ keys: [{ key: keys[0] }, { key: keys[1] }] }) });
   assert.equal(conflict.status, 409);
-  assert.equal(keyStore.snapshot().keys.length, 1);
-  const wrongInstance = await app.request(`/api/admin/keys/${created.keys[0].id}`, { method: "DELETE", headers: { ...headers, "X-Jev-Instance": "different-instance" } });
-  assert.equal(wrongInstance.status, 409);
+  assert.equal((await keyStore.snapshot()).keys.length, 1);
   const remove = await app.request(`/api/admin/keys/${created.keys[0].id}`, { method: "DELETE", headers });
   assert.equal(remove.status, 200);
   assert.equal((await remove.json()).keys.length, 0);
+  assert.equal((await app.request(`/api/admin/keys/${created.keys[0].id}`, { method: "DELETE", headers })).status, 404);
   assert.equal((await app.request("/api/admin/keys/import", { method: "POST", headers, body: document })).status, 201);
   assert.equal((await app.request("/api/admin/keys/import", { method: "POST", headers, body: "{" })).status, 400);
   assert.equal((await app.request("/api/admin/keys", { method: "POST", headers, body: "{" })).status, 400);
@@ -42,12 +42,15 @@ test("代理认证、参数校验与请求上限响应", async () => {
   const proxyHeaders = { Authorization: `Bearer ${process.env.AUTHORIZATION_TOKEN}`, "Content-Type": "application/json" };
   assert.equal((await app.request("/v1/systemone", { method: "POST", body })).status, 401);
   assert.equal((await app.request("/v1/systemone", { method: "POST", headers: proxyHeaders, body: "{}" })).status, 400);
-  for (let index = 0; index < 50; index += 1) keyStore.acquire().release();
-  const check = await app.request(`/api/admin/keys/${keyStore.snapshot().keys[0].id}/check`, { method: "POST", headers });
+  // 冷却与请求已满走同一个 429 分支；请求上限本身在 key-store 测试中用可控时钟验证。
+  const lease = await keyStore.acquire();
+  await lease.coolDown(60000);
+  await lease.release();
+  const check = await app.request(`/api/admin/keys/${(await keyStore.snapshot()).keys[0].id}/check`, { method: "POST", headers });
   assert.equal(check.status, 429);
   const limited = await app.request("/v1/systemone", { method: "POST", headers: proxyHeaders, body });
   assert.equal(limited.status, 429);
   assert.ok(Number(limited.headers.get("Retry-After")) >= 1);
-  for (const entry of keyStore.snapshot().keys) keyStore.remove(entry.id);
+  for (const entry of (await keyStore.snapshot()).keys) await keyStore.remove(entry.id);
   assert.equal((await app.request("/v1/systemone", { method: "POST", headers: proxyHeaders, body })).status, 503);
 });

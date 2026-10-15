@@ -30,8 +30,7 @@ function showLogin(message = "") {
 
 async function request(path, options = {}) {
   const credential = password;
-  const instanceHeaders = snapshot && (options.method || path.endsWith("/export")) ? { "X-Jev-Instance": snapshot.instanceId } : {};
-  const response = await fetch(path, { ...options, headers: { Authorization: authorization(), ...instanceHeaders, ...options.headers }, cache: "no-store" });
+  const response = await fetch(path, { ...options, headers: { Authorization: authorization(), ...options.headers }, cache: "no-store" });
   if (password !== credential) throw new Error("登录状态已经更改，请重新登录。");
   if (response.status === 401) {
     localStorage.removeItem(storageKey);
@@ -59,7 +58,6 @@ function render() {
   elements["capacity-count"].textContent = snapshot.maxRequestsPerSecond.toLocaleString();
   elements["list-count"].textContent = snapshot.keys.length;
   elements["limit-description"].textContent = `每个 key 在任意连续 1 秒内最多 ${snapshot.rateLimit} 次请求`;
-  elements["instance-label"].textContent = `当前实例 ${snapshot.instanceId.slice(0, 8)}`;
   elements["export-button"].disabled = snapshot.keys.length === 0 || !!bulkCheck;
   elements["check-all-button"].disabled = snapshot.keys.length === 0 || !!bulkCheck || checking.size > 0 || loading;
   elements["check-all-button"].textContent = bulkCheck ? `检测中 ${bulkCheck.completed}/${bulkCheck.total}` : "检测全部";
@@ -136,10 +134,6 @@ function render() {
 }
 
 function applySnapshot(next) {
-  if (snapshot && snapshot.instanceId !== next.instanceId) {
-    elements["notice"].textContent = "当前请求由另一个实例处理，列表已更新为该实例的内存配置。";
-    revealed.clear();
-  }
   snapshot = next;
   render();
   elements["updated-at"].textContent = `${new Date().toLocaleTimeString("zh-CN")} 更新`;
@@ -195,7 +189,6 @@ async function checkAllEntries() {
   if (!snapshot?.keys.length || bulkCheck || checking.size || loading) return;
   if (["add-button", "import-file", "confirm-delete"].some((id) => elements[id].disabled)) return;
   const entries = [...snapshot.keys];
-  const instanceId = snapshot.instanceId;
   const run = {
     controller: new AbortController(),
     completed: 0,
@@ -218,7 +211,6 @@ async function checkAllEntries() {
         try {
           const response = await request(`/api/admin/keys/${encodeURIComponent(entry.id)}/check`, {
             method: "POST",
-            headers: { "X-Jev-Instance": instanceId },
             signal: run.controller.signal,
           });
           const next = await response.json();
@@ -246,10 +238,7 @@ async function checkAllEntries() {
       if (rejected) throw failure ?? rejected.reason;
       run.controller.signal.throwIfAborted();
       // 每批完成后获取当前状态，多个检测响应的到达顺序不会覆盖较新的结果。
-      const next = await (await request("/api/admin/keys", {
-        headers: { "X-Jev-Instance": instanceId },
-        signal: run.controller.signal,
-      })).json();
+      const next = await (await request("/api/admin/keys", { signal: run.controller.signal })).json();
       run.controller.signal.throwIfAborted();
       applySnapshot(next);
     }
