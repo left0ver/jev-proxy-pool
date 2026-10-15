@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "hono",
-  "regions": ["iad1"]
+  "regions": ["iad1"],
+  "rewrites": [{ "source": "/", "destination": "/index.html" }]
 }
