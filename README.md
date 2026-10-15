@@ -39,19 +39,15 @@
 
 ### Run locally
 
-Requires Node.js 22 and a Redis database (you can deploy to Vercel first and pull its environment variables).
+Requires Node.js 22.9 or later and an Upstash Redis database (create one for free in the [Upstash console](https://console.upstash.com)).
 
 ```bash
 git clone https://github.com/left0ver/jev-proxy-pool.git
 cd jev-proxy-pool
 npm ci
-cp .env.example .env         # fill in ADMIN_PASSWORD and AUTHORIZATION_TOKEN
-npx vercel link              # link to your deployed Vercel project
-npx vercel env pull .env.local --environment development   # pull the Redis credentials
+cp .env.example .env   # fill in ADMIN_PASSWORD, AUTHORIZATION_TOKEN, and the database's KV_REST_API_URL and KV_REST_API_TOKEN
 npm run dev
 ```
-
-If local development shares a database with production, set a different `REDIS_KEY_PREFIX` in `.env` to keep the data apart.
 
 Open `http://127.0.0.1:3000`, sign in, and add your keys.
 
@@ -93,7 +89,12 @@ A successful response contains `model`, `answers` and `usage`. In the example ab
 | `400` | Invalid request parameters |
 | `401` | Wrong client token |
 | `429` | Every available key has hit its per-second limit or is cooling down; wait for `Retry-After` |
+| `502` | TypeSafe rejected the upstream credentials (`401` / `403`) |
 | `503` | No keys available; add or import some |
+| `504` | The 30-second deadline passed, or TypeSafe could not be reached |
+| `500` | Internal error, for example Redis being unreachable |
+
+Other upstream errors are passed through with TypeSafe's status code, and the response body includes `upstreamStatus` and `detail`.
 
 Each request has a 30-second overall deadline, each upstream call waits at most 10 seconds, and each key is tried at most once per request.
 

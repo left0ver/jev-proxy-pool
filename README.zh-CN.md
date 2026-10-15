@@ -39,19 +39,15 @@
 
 ### 本地运行
 
-需要 Node.js 22，以及一个 Redis 数据库（可以先部署到 Vercel，再拉取它的环境变量）。
+需要 Node.js 22.9 或更高版本，以及一个 Upstash Redis 数据库（可以在 [Upstash 控制台](https://console.upstash.com) 免费创建）。
 
 ```bash
 git clone https://github.com/left0ver/jev-proxy-pool.git
 cd jev-proxy-pool
 npm ci
-cp .env.example .env         # 填写 ADMIN_PASSWORD 和 AUTHORIZATION_TOKEN
-npx vercel link              # 关联已部署的 Vercel 项目
-npx vercel env pull .env.local --environment development   # 拉取 Redis 连接信息
+cp .env.example .env   # 填写 ADMIN_PASSWORD、AUTHORIZATION_TOKEN，以及数据库的 KV_REST_API_URL 和 KV_REST_API_TOKEN
 npm run dev
 ```
-
-本地开发和线上共用同一个数据库时，可以在 `.env` 中设置不同的 `REDIS_KEY_PREFIX` 来隔离数据。
 
 打开 `http://127.0.0.1:3000` 登录后添加 key。
 
@@ -93,7 +89,12 @@ curl --fail-with-body 'https://your-project.vercel.app/v1/systemone' \
 | `400` | 请求参数不正确 |
 | `401` | 客户端 token 不正确 |
 | `429` | 所有可用 key 都已达到每秒上限或正在冷却，按 `Retry-After` 等待 |
+| `502` | TypeSafe 拒绝了上游凭证（`401` / `403`） |
 | `503` | 没有可用 key，需要添加或导入 |
+| `504` | 超过 30 秒期限，或连不上 TypeSafe |
+| `500` | 服务端内部错误，例如连不上 Redis |
+
+其他上游错误会原样返回 TypeSafe 的状态码，响应体中包含 `upstreamStatus` 和 `detail`。
 
 单次请求总期限 30 秒，每次上游调用最多等待 10 秒，每个 key 在同一次请求中最多尝试一次。
 
