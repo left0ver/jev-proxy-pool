@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>JEV · Key 管理</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="JEV 管理首页"><span class="brand-icon">j</span>jev<span class="brand-divider"></span><span id="dashboard-title" class="brand-caption">TypeSafe API KEY管理</span></a>
+      <button id="logout-button" class="button quiet" type="button" hidden>退出登录</button>
+    </header>
+
+    <main>
+      <section id="login-panel" class="login-panel" aria-labelledby="login-title">
+        <div class="eyebrow">管理入口</div>
+        <h1 id="login-title">欢迎回来。</h1>
+        <p class="intro">输入管理密码，查看和管理你的 API key。</p>
+        <form id="login-form">
+          <label for="password">管理密码</label>
+          <input id="password" type="password" name="password" autocomplete="current-password" required autofocus>
+          <p class="field-hint">登录后，此浏览器会记住密码。</p>
+          <p id="login-error" class="error-message" role="alert"></p>
+          <button id="login-button" class="button primary full-width" type="submit">进入管理页面 <span aria-hidden="true">→</span></button>
+        </form>
+      </section>
+
+      <section id="dashboard" hidden aria-labelledby="dashboard-title">
+        <div class="stats" aria-label="Key 概况">
+          <div class="stat"><span class="stat-label">全部 key</span><strong id="total-count">—</strong><span class="stat-note">已保存的配置</span></div>
+          <div class="stat"><span class="stat-label">可用 key</span><strong id="available-count">—</strong><span class="stat-note">可以接收新请求</span></div>
+          <div class="stat"><span class="stat-label">每秒请求上限</span><strong id="capacity-count">—</strong><span class="stat-note">可用 key 数量 × 50</span></div>
+        </div>
+
+        <div class="workspace">
+          <section class="panel keys-panel" aria-labelledby="keys-title">
+            <div class="panel-heading"><div><h2 id="keys-title">Key 列表 <span id="list-count" class="count-badge">0</span></h2><p id="limit-description" class="field-hint"></p></div><div class="toolbar"><button id="check-all-button" class="button quiet small" type="button" title="检测当前实例的全部 key，包括已停用和搜索结果之外的 key" disabled>检测全部</button><button id="export-button" class="button quiet small" type="button">导出全部</button><button id="refresh-button" class="button quiet small" type="button">刷新列表</button></div></div>
+            <div class="search-row"><label class="sr-only" for="search">搜索名称或 key</label><input id="search" type="search" placeholder="搜索名称或 key" autocomplete="off"><span id="updated-at" class="updated-at"></span></div>
+            <p id="dashboard-error" class="error-message panel-message" role="alert"></p>
+            <p id="notice" class="notice panel-message" role="status" aria-live="polite"></p>
+            <p id="bulk-check-status" class="notice panel-message" role="status" aria-live="polite"></p>
+            <div class="table-scroll"><table><thead><tr><th scope="col">名称 / Key</th><th scope="col">状态</th><th scope="col">最近 1 秒</th><th scope="col">进行中</th><th scope="col"><span class="sr-only">操作</span></th></tr></thead><tbody id="key-rows"></tbody></table></div>
+            <div id="empty-state" class="empty-state" hidden><span class="empty-symbol" aria-hidden="true">＋</span><h3 id="empty-title">还没有保存 key</h3><p id="empty-description">添加一个 key，开始接收请求。</p></div>
+          </section>
+
+          <aside class="panel add-panel" aria-labelledby="add-title">
+            <div class="panel-heading"><div><span class="eyebrow">添加连接</span><h2 id="add-title">添加 key</h2></div><span class="add-symbol" aria-hidden="true">＋</span></div>
+            <form id="add-form">
+              <label for="key-name">名称 <span class="optional">可选</span></label>
+              <input id="key-name" name="name" maxlength="80" placeholder="例如：项目 A" autocomplete="off">
+              <label for="new-keys">API key</label>
+              <textarea id="new-keys" name="keys" rows="6" placeholder="apikey_…" spellcheck="false" autocomplete="off" required></textarea>
+              <p class="field-hint">支持一次添加多个 key，每行填写一个。</p>
+              <button id="add-button" class="button primary full-width" type="submit">添加 key <span aria-hidden="true">＋</span></button>
+            </form>
+            <div class="import-section"><label for="import-file">从 JSONL 文件导入</label><input id="import-file" type="file" accept=".jsonl,.ndjson,application/x-ndjson"><p class="field-hint">导入会添加文件中的全部 key，重复 key 会提示错误。</p></div>
+            <div class="memory-note"><p>配置保存在当前实例内存中。请导出备份，实例重新启动后可以重新导入。</p><p id="instance-label"></p></div>
+          </aside>
+        </div>
+      </section>
+    </main>
+    <footer><span>JEV PROXY</span><span>TypeSafe · Jev</span></footer>
+
+    <dialog id="delete-dialog" aria-labelledby="delete-title"><form id="delete-form"><div class="eyebrow">删除连接</div><h2 id="delete-title">删除这个 key？</h2><p id="delete-description"></p><p class="field-hint">删除后，新请求将使用其他可用 key。</p><p id="delete-error" class="error-message" role="alert"></p><div class="dialog-actions"><button id="cancel-delete" class="button quiet" type="button">取消</button><button id="confirm-delete" class="button danger" type="submit">确认删除</button></div></form></dialog>
+  </body>
+</html>
