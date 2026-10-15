@@ -7,3 +7,4 @@ node_modules/
 .key-check/
 .agents
 .claude
+skills-lock.json
