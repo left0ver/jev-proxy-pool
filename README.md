@@ -14,6 +14,7 @@
 
 <p align="center">
   <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool&amp;project-name=jev-proxy-pool&amp;repository-name=jev-proxy-pool&amp;env=ADMIN_PASSWORD,AUTHORIZATION_TOKEN&amp;stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22upstash%22%2C%22productSlug%22%3A%22upstash-kv%22%2C%22protocol%22%3A%22storage%22%7D%5D&amp;envLink=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool%23environment-variables"><img src="https://vercel.com/button" alt="Deploy with Vercel"></a>
+  <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool&amp;project-name=jev-proxy-pool&amp;repository-name=jev-proxy-pool&amp;env=ADMIN_PASSWORD,AUTHORIZATION_TOKEN,USE_REDIS,TYPESAFE_API_KEYS&amp;envDefaults=%7B%22USE_REDIS%22%3A%22false%22%7D&amp;envDescription=Keep%20USE_REDIS%3Dfalse%20and%20put%20your%20TypeSafe%20API%20keys%20in%20TYPESAFE_API_KEYS%2C%20separated%20by%20commas.&amp;envLink=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool%23running-without-redis"><img src="https://img.shields.io/badge/Deploy%20without%20Redis-000000?style=for-the-badge&amp;logo=vercel&amp;logoColor=white" alt="Deploy without Redis"></a>
 </p>
 
 ## Features
@@ -22,6 +23,7 @@
 - Disables a key automatically when upstream returns `401` / `402`, and pauses it and switches to another key on `429`
 - Web admin panel for keys: add, check, search, delete, plus JSONL import and export
 - Keys and request counters live in Redis (Upstash), shared by every instance and kept across redeploys
+- Optional Redis-free mode: keys come from an environment variable (see [Running without Redis](#running-without-redis))
 - One-click deployment to Vercel
 
 > [!NOTE]
@@ -36,6 +38,8 @@
 3. Fill in the `ADMIN_PASSWORD` and `AUTHORIZATION_TOKEN` environment variables, then deploy.
 4. Open the deployed site and sign in with `ADMIN_PASSWORD`.
 5. Add your TypeSafe API keys, or import a JSONL file you exported earlier.
+
+To skip Redis, use the **Deploy without Redis** button instead: no database is created, `USE_REDIS` is prefilled with `false`, and you enter your keys in `TYPESAFE_API_KEYS`, separated by commas. See [Running without Redis](#running-without-redis) for what changes in this mode.
 
 ### Run locally
 
@@ -59,11 +63,23 @@ Open `http://127.0.0.1:3000`, sign in, and add your keys.
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | Yes | Password for the admin panel |
 | `AUTHORIZATION_TOKEN` | Yes | Bearer token clients use to call the API |
-| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Yes | Upstash Redis REST URL and token, added automatically when the database is connected on Vercel; `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` also work |
+| `USE_REDIS` | No | `false` turns off Redis and reads keys from `TYPESAFE_API_KEYS`, defaults to `true` |
+| `TYPESAFE_API_KEYS` | When `USE_REDIS=false` | Keys, one per line or separated by commas; JSONL lines exported from the admin panel also work |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Unless `USE_REDIS=false` | Upstash Redis REST URL and token, added automatically when the database is connected on Vercel; `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` also work |
 | `REDIS_KEY_PREFIX` | No | Prefix for Redis keys, defaults to `jev:` |
 | `PORT` | No | Local development port, defaults to `3000` |
 
 Use different random strings for `ADMIN_PASSWORD` and `AUTHORIZATION_TOKEN`.
+
+<a id="running-without-redis"></a>
+
+### Running without Redis
+
+Set `USE_REDIS=false` and put your keys in `TYPESAFE_API_KEYS`. You don't need an Upstash database. Every instance reads the same key list, but everything else stays in each instance's memory:
+
+- To add or remove keys, edit `TYPESAFE_API_KEYS` and redeploy. The admin panel can only check and export keys.
+- Each instance enforces the 50 requests per second limit on its own, so when Vercel runs several instances, a key can receive more than that in total.
+- Keys disabled after `401` / `402`, cooldowns and check results reset when an instance restarts, and are not shared with other instances. The admin panel shows the state of whichever instance answered.
 
 ## API usage
 

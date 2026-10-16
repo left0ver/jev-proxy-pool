@@ -47,7 +47,7 @@
           </section>
 
           <aside class="panel add-panel" aria-labelledby="add-title">
-            <div class="panel-heading"><div><span class="eyebrow">添加连接</span><h2 id="add-title">添加 key</h2></div><span class="add-symbol" aria-hidden="true">＋</span></div>
+            <div class="panel-heading"><div><span id="add-eyebrow" class="eyebrow">添加连接</span><h2 id="add-title">添加 key</h2></div><span id="add-symbol" class="add-symbol" aria-hidden="true">＋</span></div>
             <form id="add-form">
               <label for="key-name">名称 <span class="optional">可选</span></label>
               <input id="key-name" name="name" maxlength="80" placeholder="例如：项目 A" autocomplete="off">
@@ -56,8 +56,8 @@
               <p class="field-hint">支持一次添加多个 key，每行填写一个。</p>
               <button id="add-button" class="button primary full-width" type="submit">添加 key <span aria-hidden="true">＋</span></button>
             </form>
-            <div class="import-section"><label for="import-file">从 JSONL 文件导入</label><input id="import-file" type="file" accept=".jsonl,.ndjson,application/x-ndjson"><p class="field-hint">导入会添加文件中的全部 key，重复 key 会提示错误。</p></div>
-            <div class="memory-note"><p>配置保存在 Redis 中，重新部署后仍然保留。建议定期导出备份。</p></div>
+            <div id="import-section" class="import-section"><label for="import-file">从 JSONL 文件导入</label><input id="import-file" type="file" accept=".jsonl,.ndjson,application/x-ndjson"><p class="field-hint">导入会添加文件中的全部 key，重复 key 会提示错误。</p></div>
+            <div class="memory-note"><p id="storage-note">配置保存在 Redis 中，重新部署后仍然保留。建议定期导出备份。</p></div>
           </aside>
         </div>
       </section>

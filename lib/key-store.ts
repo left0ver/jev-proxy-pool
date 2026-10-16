@@ -1,37 +1,27 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { Redis } from "@upstash/redis";
-import JSONLModule from "jsonl-parse-stringify";
 import { z } from "zod";
+import {
+  configSchema,
+  exportConfigs,
+  JSONL,
+  keyId,
+  MAX_KEYS,
+  PoolError,
+  RATE_LIMIT,
+  summarize,
+  WINDOW_MS,
+  type KeyCheckResult,
+  type KeyPool,
+  type Lease,
+} from "./key-pool.js";
+import { MemoryKeyStore } from "./memory-key-store.js";
 
-export const RATE_LIMIT = 50;
-const WINDOW_MS = 1000;
-const MAX_KEYS = 10000;
+export { PoolError, RATE_LIMIT, type KeyCheckResult, type KeyConfig, type KeyPool, type Lease } from "./key-pool.js";
+
 // 进行中请求的租约有效期，长于单次代理请求的 30 秒期限；实例中途退出时租约到期自动失效。
 // 请求计数也按这个时间过期，只用于回收不再使用的 key，窗口外的记录在每次选择时清除。
 const LEASE_TTL_MS = 60000;
-const JSONL = JSONLModule.default;
-
-const configSchema = z.object({
-  key: z.string().trim().regex(/^apikey_[a-f0-9]+_[a-f0-9]+$/, "API key 格式不正确").max(512),
-  name: z.string().trim().max(80).default(""),
-  enabled: z.boolean().default(true),
-  disabledReason: z.string().max(200).nullable().default(null),
-  createdAt: z.iso.datetime().default(() => new Date().toISOString()),
-}).strict();
-
-export type KeyConfig = z.infer<typeof configSchema>;
-export type KeyCheckResult = {
-  status: "valid" | "invalid" | "no_credits" | "rate_limited" | "unconfirmed";
-  message: string;
-  checkedAt: string;
-  upstreamStatus: number | null;
-};
-
-export class PoolError extends Error {
-  constructor(message: string, public status: number, public retryAfterMs?: number) {
-    super(message);
-  }
-}
 
 /*
  * Redis 数据布局（p 为前缀）：
@@ -188,7 +178,7 @@ export type KeyStoreOptions = {
   clock?: () => number;
 };
 
-export class KeyStore {
+export class KeyStore implements KeyPool {
   private readonly prefix: string;
   private readonly clock: () => number;
   private client?: Redis;
@@ -222,17 +212,13 @@ export class KeyStore {
     return this.scripts;
   }
 
-  private id(key: string) {
-    return createHash("sha256").update(key).digest("hex");
-  }
-
   async add(input: unknown) {
     const parsed = z.array(configSchema).min(1).max(MAX_KEYS).safeParse(input);
     if (!parsed.success) throw new PoolError("Key 配置格式不正确，请检查 key、名称和状态字段", 400);
     const ids = new Set<string>();
     const args = [this.prefix, String(MAX_KEYS)];
     for (const entry of parsed.data) {
-      const id = this.id(entry.key);
+      const id = keyId(entry.key);
       if (ids.has(id)) throw new PoolError("存在重复 key，本次添加未保存", 409);
       ids.add(id);
       args.push(id, JSON.stringify(entry));
@@ -256,7 +242,7 @@ export class KeyStore {
 
   async export() {
     const { entries } = await this.read();
-    return entries.length ? `${JSONL.stringify(entries.map(({ config }) => config))}\n` : "";
+    return exportConfigs(entries.map(({ config }) => config));
   }
 
   async remove(id: string) {
@@ -283,13 +269,7 @@ export class KeyStore {
 
   async snapshot() {
     const { now, entries } = await this.read();
-    const keys = entries.map(({ id, config, lastCheck, cooldownUntil, recentRequests, inFlight }) => {
-      const cooling = cooldownUntil > now;
-      const status = !config.enabled ? "disabled" : cooling ? "cooldown" : recentRequests >= RATE_LIMIT ? "busy" : "available";
-      return { ...config, id, status, recentRequests, inFlight, cooldownSeconds: Math.max(0, Math.ceil((cooldownUntil - now) / 1000)), lastCheck };
-    });
-    const available = keys.filter(({ enabled, status }) => enabled && status !== "cooldown").length;
-    return { keys, rateLimit: RATE_LIMIT, available, maxRequestsPerSecond: available * RATE_LIMIT };
+    return summarize("redis", now, entries);
   }
 
   private leaseArgs(token: string) {
@@ -312,7 +292,7 @@ export class KeyStore {
     throw new PoolError("找不到这个 key", 404);
   }
 
-  private lease(id: string, config: string, token: string) {
+  private lease(id: string, config: string, token: string): Lease {
     // 检测与代理请求共用计数，脚本在返回 key 之前已经占用名额。
     const update = (...args: string[]) => this.script.update.exec([], [this.prefix, id, ...args]);
     let released = false;
@@ -332,4 +312,12 @@ export class KeyStore {
   }
 }
 
-export const keyStore = new KeyStore();
+/** USE_REDIS=false 时改为从环境变量 TYPESAFE_API_KEYS 读取 key，默认使用 Redis。 */
+function useRedis() {
+  const value = (process.env.USE_REDIS ?? "").trim().toLowerCase();
+  if (value === "" || value === "true") return true;
+  if (value === "false") return false;
+  throw new Error("USE_REDIS 只能是 true 或 false");
+}
+
+export const keyStore: KeyPool = useRedis() ? new KeyStore() : new MemoryKeyStore();

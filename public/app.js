@@ -53,6 +53,16 @@ function create(tag, className, text) {
 
 function render() {
   if (!snapshot) return;
+  // key 来自环境变量时只能检测和导出，添加、导入和删除需要修改环境变量后重新部署。
+  const fromEnv = snapshot.storage === "env";
+  elements["add-form"].hidden = fromEnv;
+  elements["import-section"].hidden = fromEnv;
+  elements["add-symbol"].hidden = fromEnv;
+  elements["add-eyebrow"].textContent = fromEnv ? "环境变量" : "添加连接";
+  elements["add-title"].textContent = fromEnv ? "Key 来源" : "添加 key";
+  elements["storage-note"].textContent = fromEnv
+    ? "未使用 Redis，key 来自环境变量 TYPESAFE_API_KEYS。修改 key 需要更新环境变量并重新部署。停用、冷却和检测结果只保存在当前实例中，实例重启后恢复为环境变量中的配置，管理页面每次刷新可能看到不同实例的状态。"
+    : "配置保存在 Redis 中，重新部署后仍然保留。建议定期导出备份。";
   elements["total-count"].textContent = snapshot.keys.length.toLocaleString();
   elements["available-count"].textContent = snapshot.available.toLocaleString();
   elements["capacity-count"].textContent = snapshot.maxRequestsPerSecond.toLocaleString();
@@ -122,7 +132,8 @@ function render() {
       elements["delete-error"].textContent = "";
       elements["delete-dialog"].showModal();
     });
-    actions.append(check, remove);
+    actions.append(check);
+    if (!fromEnv) actions.append(remove);
     action.append(actions);
     row.append(identity, stateCell, usage, create("td", "usage", String(entry.inFlight)), action);
     return row;
@@ -130,7 +141,7 @@ function render() {
   elements["key-rows"].replaceChildren(...rows);
   elements["empty-state"].hidden = entries.length !== 0;
   elements["empty-title"].textContent = query ? "没有找到匹配的 key" : "还没有保存 key";
-  elements["empty-description"].textContent = query ? "尝试其他名称或 key 内容。" : "添加 key 或导入 JSONL 文件，开始接收请求。";
+  elements["empty-description"].textContent = query ? "尝试其他名称或 key 内容。" : fromEnv ? "在环境变量 TYPESAFE_API_KEYS 中填写 key 后重新部署。" : "添加 key 或导入 JSONL 文件，开始接收请求。";
 }
 
 function applySnapshot(next) {

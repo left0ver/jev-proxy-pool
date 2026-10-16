@@ -14,6 +14,7 @@
 
 <p align="center">
   <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool&amp;project-name=jev-proxy-pool&amp;repository-name=jev-proxy-pool&amp;env=ADMIN_PASSWORD,AUTHORIZATION_TOKEN&amp;stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22upstash%22%2C%22productSlug%22%3A%22upstash-kv%22%2C%22protocol%22%3A%22storage%22%7D%5D&amp;envLink=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool%23environment-variables"><img src="https://vercel.com/button" alt="Deploy with Vercel"></a>
+  <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool&amp;project-name=jev-proxy-pool&amp;repository-name=jev-proxy-pool&amp;env=ADMIN_PASSWORD,AUTHORIZATION_TOKEN,USE_REDIS,TYPESAFE_API_KEYS&amp;envDefaults=%7B%22USE_REDIS%22%3A%22false%22%7D&amp;envDescription=%E4%BF%9D%E6%8C%81%20USE_REDIS%3Dfalse%EF%BC%8C%E5%9C%A8%20TYPESAFE_API_KEYS%20%E4%B8%AD%E5%A1%AB%E5%86%99%20TypeSafe%20API%20key%EF%BC%8C%E5%A4%9A%E4%B8%AA%20key%20%E7%94%A8%E8%8B%B1%E6%96%87%E9%80%97%E5%8F%B7%E5%88%86%E9%9A%94%E3%80%82&amp;envLink=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool%23running-without-redis"><img src="https://img.shields.io/badge/%E4%B8%8D%E4%BD%BF%E7%94%A8%20Redis%20%E9%83%A8%E7%BD%B2-000000?style=for-the-badge&amp;logo=vercel&amp;logoColor=white" alt="不使用 Redis 部署"></a>
 </p>
 
 ## 特性
@@ -22,6 +23,7 @@
 - 上游返回 `401` / `402` 时自动停用 key，返回 `429` 时暂停使用并切换到其他 key
 - 网页管理 key：添加、检测、搜索、删除，以及 JSONL 导入和导出
 - key 和请求计数保存在 Redis（Upstash）中，多个实例共用，重新部署后不丢失
+- 可选不使用 Redis，从环境变量读取 key（见[不使用 Redis](#running-without-redis)）
 - 支持一键部署到 Vercel
 
 > [!NOTE]
@@ -36,6 +38,8 @@
 3. 填写环境变量 `ADMIN_PASSWORD` 和 `AUTHORIZATION_TOKEN`，然后部署。
 4. 打开生成的网站，用 `ADMIN_PASSWORD` 登录。
 5. 添加 TypeSafe API key，或导入之前导出的 JSONL 文件。
+
+如果不想使用 Redis，可以改用**不使用 Redis 部署**按钮：不会创建数据库，`USE_REDIS` 已预填为 `false`，只需在 `TYPESAFE_API_KEYS` 中填写 key，多个 key 用英文逗号分隔。这种模式的区别见[不使用 Redis](#running-without-redis)。
 
 ### 本地运行
 
@@ -59,11 +63,23 @@ npm run dev
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | 是 | 管理网页登录密码 |
 | `AUTHORIZATION_TOKEN` | 是 | 客户端 API 的 Bearer token |
-| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | 是 | Upstash Redis 的 REST 地址和 token，在 Vercel 上连接数据库后自动添加；也可以使用 `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` |
+| `USE_REDIS` | 否 | 设为 `false` 时不使用 Redis，从 `TYPESAFE_API_KEYS` 读取 key，默认 `true` |
+| `TYPESAFE_API_KEYS` | `USE_REDIS=false` 时必填 | key 列表，每行一个或用逗号分隔，也可以使用管理页面导出的 JSONL |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | 除非 `USE_REDIS=false` | Upstash Redis 的 REST 地址和 token，在 Vercel 上连接数据库后自动添加；也可以使用 `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` |
 | `REDIS_KEY_PREFIX` | 否 | Redis key 前缀，默认 `jev:` |
 | `PORT` | 否 | 本地开发端口，默认 `3000` |
 
 `ADMIN_PASSWORD` 和 `AUTHORIZATION_TOKEN` 建议使用不同的随机字符串。
+
+<a id="running-without-redis"></a>
+
+### 不使用 Redis
+
+设置 `USE_REDIS=false`，并在 `TYPESAFE_API_KEYS` 中填写 key，就不需要 Upstash 数据库。所有实例读取同一份 key 列表，但其他状态只保存在各实例的内存中：
+
+- 增删 key 需要修改 `TYPESAFE_API_KEYS` 后重新部署，管理页面只能检测和导出。
+- 每秒 50 次的上限由各实例分别计算，Vercel 同时运行多个实例时，单个 key 的总请求数可能超过上限。
+- 因 `401` / `402` 停用的状态、冷却和检测结果在实例重启后恢复，也不会同步到其他实例；管理页面显示的是响应请求的那个实例的状态。
 
 ## API 用法
 
