@@ -29,6 +29,17 @@
 > [!NOTE]
 > 每次代理请求大约消耗 3 条 Redis 命令（选择 key、释放名额，成功后重置限流次数），管理页面的列表刷新每次 1 条。请留意 Upstash 套餐的命令额度。
 
+<a id="running-without-redis"></a>
+
+> [!NOTE]
+> **不使用 Redis**
+>
+> 设置 `USE_REDIS=false`，并在 `TYPESAFE_API_KEYS` 中填写 key，就不需要 Upstash 数据库。所有实例读取同一份 key 列表，但其他状态只保存在各实例的内存中：
+>
+> - 增删 key 需要修改 `TYPESAFE_API_KEYS` 后重新部署，管理页面只能检测和导出。
+> - 每秒 50 次的上限由各实例分别计算，Vercel 同时运行多个实例时，单个 key 的总请求数可能超过上限。
+> - 因 `401` / `402` 停用的状态、冷却和检测结果在实例重启后恢复，也不会同步到其他实例；管理页面显示的是响应请求的那个实例的状态。
+
 ## 快速开始
 
 ### 部署到 Vercel
@@ -70,16 +81,6 @@ npm run dev
 | `PORT` | 否 | 本地开发端口，默认 `3000` |
 
 `ADMIN_PASSWORD` 和 `AUTHORIZATION_TOKEN` 建议使用不同的随机字符串。
-
-<a id="running-without-redis"></a>
-
-### 不使用 Redis
-
-设置 `USE_REDIS=false`，并在 `TYPESAFE_API_KEYS` 中填写 key，就不需要 Upstash 数据库。所有实例读取同一份 key 列表，但其他状态只保存在各实例的内存中：
-
-- 增删 key 需要修改 `TYPESAFE_API_KEYS` 后重新部署，管理页面只能检测和导出。
-- 每秒 50 次的上限由各实例分别计算，Vercel 同时运行多个实例时，单个 key 的总请求数可能超过上限。
-- 因 `401` / `402` 停用的状态、冷却和检测结果在实例重启后恢复，也不会同步到其他实例；管理页面显示的是响应请求的那个实例的状态。
 
 ## API 用法
 

@@ -29,6 +29,17 @@
 > [!NOTE]
 > Each proxied request uses about 3 Redis commands (pick a key, release the slot, reset the rate-limit streak on success), and each refresh of the admin list uses 1. Keep an eye on the command quota of your Upstash plan.
 
+<a id="running-without-redis"></a>
+
+> [!NOTE]
+> **Running without Redis**
+>
+> Set `USE_REDIS=false` and put your keys in `TYPESAFE_API_KEYS`. You don't need an Upstash database. Every instance reads the same key list, but everything else stays in each instance's memory:
+>
+> - To add or remove keys, edit `TYPESAFE_API_KEYS` and redeploy. The admin panel can only check and export keys.
+> - Each instance enforces the 50 requests per second limit on its own, so when Vercel runs several instances, a key can receive more than that in total.
+> - Keys disabled after `401` / `402`, cooldowns and check results reset when an instance restarts, and are not shared with other instances. The admin panel shows the state of whichever instance answered.
+
 ## Quick start
 
 ### Deploy to Vercel
@@ -70,16 +81,6 @@ Open `http://127.0.0.1:3000`, sign in, and add your keys.
 | `PORT` | No | Local development port, defaults to `3000` |
 
 Use different random strings for `ADMIN_PASSWORD` and `AUTHORIZATION_TOKEN`.
-
-<a id="running-without-redis"></a>
-
-### Running without Redis
-
-Set `USE_REDIS=false` and put your keys in `TYPESAFE_API_KEYS`. You don't need an Upstash database. Every instance reads the same key list, but everything else stays in each instance's memory:
-
-- To add or remove keys, edit `TYPESAFE_API_KEYS` and redeploy. The admin panel can only check and export keys.
-- Each instance enforces the 50 requests per second limit on its own, so when Vercel runs several instances, a key can receive more than that in total.
-- Keys disabled after `401` / `402`, cooldowns and check results reset when an instance restarts, and are not shared with other instances. The admin panel shows the state of whichever instance answered.
 
 ## API usage
 
