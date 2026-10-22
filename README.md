@@ -17,6 +17,8 @@
   <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool&amp;project-name=jev-proxy-pool&amp;repository-name=jev-proxy-pool&amp;env=ADMIN_PASSWORD,AUTHORIZATION_TOKEN,USE_REDIS,TYPESAFE_API_KEYS&amp;envDefaults=%7B%22USE_REDIS%22%3A%22false%22%7D&amp;envDescription=Keep%20USE_REDIS%3Dfalse%20and%20put%20your%20TypeSafe%20API%20keys%20in%20TYPESAFE_API_KEYS%2C%20separated%20by%20commas.&amp;envLink=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool%23running-without-redis"><img src="https://img.shields.io/badge/Deploy%20without%20Redis-000000?style=for-the-badge&amp;logo=vercel&amp;logoColor=white" alt="Deploy without Redis"></a>
 </p>
 
+<p align="center"><img src="docs/preview.png" alt="Admin panel" width="900"></p>
+
 ## Features
 
 - Rotates through available keys in order, with at most 50 upstream calls per key per second

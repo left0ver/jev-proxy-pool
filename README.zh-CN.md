@@ -17,6 +17,8 @@
   <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool&amp;project-name=jev-proxy-pool&amp;repository-name=jev-proxy-pool&amp;env=ADMIN_PASSWORD,AUTHORIZATION_TOKEN,USE_REDIS,TYPESAFE_API_KEYS&amp;envDefaults=%7B%22USE_REDIS%22%3A%22false%22%7D&amp;envDescription=%E4%BF%9D%E6%8C%81%20USE_REDIS%3Dfalse%EF%BC%8C%E5%9C%A8%20TYPESAFE_API_KEYS%20%E4%B8%AD%E5%A1%AB%E5%86%99%20TypeSafe%20API%20key%EF%BC%8C%E5%A4%9A%E4%B8%AA%20key%20%E7%94%A8%E8%8B%B1%E6%96%87%E9%80%97%E5%8F%B7%E5%88%86%E9%9A%94%E3%80%82&amp;envLink=https%3A%2F%2Fgithub.com%2Fleft0ver%2Fjev-proxy-pool%23running-without-redis"><img src="https://img.shields.io/badge/%E4%B8%8D%E4%BD%BF%E7%94%A8%20Redis%20%E9%83%A8%E7%BD%B2-000000?style=for-the-badge&amp;logo=vercel&amp;logoColor=white" alt="不使用 Redis 部署"></a>
 </p>
 
+<p align="center"><img src="docs/preview.png" alt="管理页面" width="900"></p>
+
 ## 特性
 
 - 顺序轮换可用 key，每个 key 每秒最多 50 次上游调用
