@@ -4,6 +4,7 @@ import { z } from "zod";
 import { adminAuthorized, privateJson } from "./lib/http.js";
 import { keyStore, PoolError } from "./lib/key-store.js";
 import { checkKey } from "./lib/key-check.js";
+import { HISTORY_HOURS } from "./lib/key-pool.js";
 import { POST } from "./lib/systemone.js";
 
 const app = new Hono();
@@ -39,12 +40,23 @@ app.post("/api/admin/keys/:id/check", async (context) => {
   const check = await checkKey(context.req.param("id"), context.req.raw.signal);
   return privateJson({ check, ...await keyStore.snapshot() });
 });
+app.get("/api/admin/requests/history", async (context) => {
+  const hours = z.coerce.number().int().min(1).max(HISTORY_HOURS).parse(context.req.query("hours") ?? "24");
+  return privateJson({ maxHours: HISTORY_HOURS, buckets: await keyStore.requestHistory(hours) });
+});
 app.get("/api/admin/keys/export", async () => new Response(await keyStore.export(), {
   headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Content-Disposition": 'attachment; filename="jev-keys.jsonl"', "Cache-Control": "no-store" },
 }));
 
-app.post("/v1/systemone", (context) => POST(context.req.raw));
-app.post("/api/v1/systemone", (context) => POST(context.req.raw));
+/** 统计写入失败只记录日志，不影响已经得到的响应。 */
+async function proxy(request: Request) {
+  const response = await POST(request);
+  await keyStore.recordRequest(response.status).catch((error) => console.error("记录请求统计失败", error));
+  return response;
+}
+
+app.post("/v1/systemone", (context) => proxy(context.req.raw));
+app.post("/api/v1/systemone", (context) => proxy(context.req.raw));
 
 app.onError((error) => {
   if (error instanceof PoolError) return privateJson({ error: error.message }, error.status);

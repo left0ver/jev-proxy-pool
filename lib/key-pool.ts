@@ -54,14 +54,34 @@ export type KeyEntry = {
 /** redis：保存在 Redis，多个实例共用；env：来自环境变量，状态只在当前实例内存中。 */
 export type Storage = "redis" | "env";
 
-export function summarize(storage: Storage, now: number, entries: KeyEntry[]) {
+/** 代理接口各状态码的响应次数，since 为第一次记录的时间。 */
+export type RequestCounts = { byStatus: Record<string, number>; since: string | null };
+
+// 调用趋势按小时分桶保存 13 周，管理页面按浏览器时区汇总成小时、天和周。
+export const HOUR_MS = 3600000;
+export const HISTORY_HOURS = 13 * 7 * 24;
+
+/** hour 为这个小时开始的毫秒时间戳，没有请求的小时不返回。 */
+export type RequestBucket = { hour: number; byStatus: Record<string, number> };
+
+export function summarizeRequests({ byStatus, since }: RequestCounts) {
+  let total = 0;
+  let success = 0;
+  for (const [status, count] of Object.entries(byStatus)) {
+    total += count;
+    if (status.startsWith("2")) success += count;
+  }
+  return { total, success, error: total - success, byStatus, since };
+}
+
+export function summarize(storage: Storage, now: number, entries: KeyEntry[], requests: RequestCounts) {
   const keys = entries.map(({ id, config, lastCheck, cooldownUntil, recentRequests, inFlight }) => {
     const cooling = cooldownUntil > now;
     const status = !config.enabled ? "disabled" : cooling ? "cooldown" : recentRequests >= RATE_LIMIT ? "busy" : "available";
     return { ...config, id, status, recentRequests, inFlight, cooldownSeconds: Math.max(0, Math.ceil((cooldownUntil - now) / 1000)), lastCheck };
   });
   const available = keys.filter(({ enabled, status }) => enabled && status !== "cooldown").length;
-  return { storage, keys, rateLimit: RATE_LIMIT, available, maxRequestsPerSecond: available * RATE_LIMIT };
+  return { storage, keys, rateLimit: RATE_LIMIT, available, maxRequestsPerSecond: available * RATE_LIMIT, requests: summarizeRequests(requests) };
 }
 
 export type Snapshot = ReturnType<typeof summarize>;
@@ -76,4 +96,8 @@ export interface KeyPool {
   snapshot(): Promise<Snapshot>;
   acquire(excluded?: Set<string>): Promise<Lease>;
   acquireForCheck(id: string): Promise<Lease>;
+  /** 记录一次代理接口的响应状态码。 */
+  recordRequest(status: number): Promise<void>;
+  /** 最近 hours 个小时（含当前小时）的请求统计，按时间顺序排列。 */
+  requestHistory(hours: number): Promise<RequestBucket[]>;
 }

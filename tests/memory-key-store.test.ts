@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
 import app from "../index.js";
-import { PoolError } from "../lib/key-pool.js";
+import { HISTORY_HOURS, HOUR_MS, PoolError } from "../lib/key-pool.js";
 import { MemoryKeyStore } from "../lib/memory-key-store.js";
 
 const isPoolError = (status: number) => (error: unknown) => error instanceof PoolError && error.status === status;
@@ -82,6 +82,36 @@ test("停用、检测和指数冷却只改变当前实例的状态", async () =>
   await assert.rejects(store.acquire(new Set([(await store.snapshot()).keys[1].id])), (error: unknown) => isPoolError(429)(error) && (error as PoolError).retryAfterMs === 80);
 });
 
+test("代理接口统计只保存在当前实例", async () => {
+  const { store, clock } = memoryStore(first);
+  assert.deepEqual((await store.snapshot()).requests, { total: 0, success: 0, error: 0, byStatus: {}, since: null });
+  const since = new Date(clock.now).toISOString();
+  for (const status of [200, 503, 200]) {
+    await store.recordRequest(status);
+    clock.now += 1000;
+  }
+  assert.deepEqual((await store.snapshot()).requests, { total: 3, success: 2, error: 1, byStatus: { 200: 2, 503: 1 }, since });
+  assert.equal((await memoryStore(first).store.snapshot()).requests.total, 0);
+});
+
+test("调用趋势按小时分桶，超过 13 周的记录被清除", async () => {
+  const { store, clock } = memoryStore(first);
+  clock.now = Math.floor(clock.now / HOUR_MS) * HOUR_MS;
+  const start = clock.now;
+  await store.recordRequest(200);
+  clock.now += HOUR_MS - 1;
+  await store.recordRequest(429);
+  clock.now += 1;
+  await store.recordRequest(200);
+  await store.recordRequest(200);
+  assert.deepEqual(await store.requestHistory(2), [{ hour: start, byStatus: { 200: 1, 429: 1 } }, { hour: start + HOUR_MS, byStatus: { 200: 2 } }]);
+  assert.deepEqual(await store.requestHistory(1), [{ hour: start + HOUR_MS, byStatus: { 200: 2 } }]);
+  clock.now = start + HISTORY_HOURS * HOUR_MS;
+  await store.recordRequest(500);
+  assert.deepEqual((await store.requestHistory(HISTORY_HOURS)).map(({ hour }) => hour), [start + HOUR_MS, clock.now]);
+  assert.equal((await store.snapshot()).requests.total, 5);
+});
+
 test("USE_REDIS=false 时管理接口读取环境变量中的 key", async () => {
   process.env.ADMIN_PASSWORD = randomBytes(24).toString("hex");
   const headers = { Authorization: `Basic ${Buffer.from(`admin:${process.env.ADMIN_PASSWORD}`).toString("base64")}`, "Content-Type": "application/json" };
@@ -93,4 +123,15 @@ test("USE_REDIS=false 时管理接口读取环境变量中的 key", async () => 
   assert.match((await create.json()).error, /TYPESAFE_API_KEYS/);
   assert.equal((await app.request(`/api/admin/keys/${snapshot.keys[0].id}`, { method: "DELETE", headers })).status, 403);
   assert.ok((await (await app.request("/api/admin/keys/export", { headers })).text()).includes(envKeys[1]));
+  assert.equal((await app.request("/v1/systemone", { method: "POST", body: "{}" })).status, 401);
+  assert.equal((await app.request("/api/v1/systemone", { method: "POST", body: "{}" })).status, 401);
+  const { requests } = await (await app.request("/api/admin/keys", { headers })).json();
+  assert.deepEqual([requests.total, requests.error, requests.byStatus], [2, 2, { 401: 2 }]);
+  const history = await (await app.request("/api/admin/requests/history?hours=24", { headers })).json();
+  assert.equal(history.maxHours, HISTORY_HOURS);
+  assert.deepEqual(history.buckets.map(({ byStatus }: { byStatus: object }) => byStatus), [{ 401: 2 }]);
+  assert.equal((await app.request("/api/admin/requests/history")).status, 401);
+  for (const hours of ["0", "1.5", String(HISTORY_HOURS + 1), "abc"]) {
+    assert.equal((await app.request(`/api/admin/requests/history?hours=${hours}`, { headers })).status, 400);
+  }
 });

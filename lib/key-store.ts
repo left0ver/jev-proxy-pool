@@ -4,6 +4,8 @@ import { z } from "zod";
 import {
   configSchema,
   exportConfigs,
+  HISTORY_HOURS,
+  HOUR_MS,
   JSONL,
   keyId,
   MAX_KEYS,
@@ -14,6 +16,8 @@ import {
   type KeyCheckResult,
   type KeyPool,
   type Lease,
+  type RequestBucket,
+  type RequestCounts,
 } from "./key-pool.js";
 import { MemoryKeyStore } from "./memory-key-store.js";
 
@@ -31,6 +35,8 @@ const LEASE_TTL_MS = 60000;
  *   p.cool     hash  id → 冷却结束时间（毫秒）
  *   p.fails    hash  id → 连续限流次数
  *   p.cursor   string 轮换位置
+ *   p.stats    hash  代理接口状态码 → 响应次数，since → 第一次记录的时间
+ *   p.hr:<n>   hash  第 n 个小时（毫秒时间戳 / 3600000）的状态码 → 响应次数，保留 13 周
  *   p.rl:<id>  zset  最近一秒的请求开始时间，删除 key 后仍保留到过期，重新添加时继续遵守上限
  *   p.fly:<id> zset  进行中请求的租约 → 到期时间
  */
@@ -132,6 +138,29 @@ for _, id in ipairs(redis.call('ZRANGE', p .. 'ids', 0, -1)) do
   out[#out + 1] = tostring(redis.call('ZCOUNT', p .. 'rl:' .. id, '(' .. (now - window), '+inf'))
   out[#out + 1] = tostring(redis.call('ZCOUNT', p .. 'fly:' .. id, '(' .. now, '+inf'))
 end
+return { out, redis.call('HGETALL', p .. 'stats') }
+`;
+
+const RECORD_LUA = `
+local p, status = ARGV[1], ARGV[3]
+local hour = p .. 'hr:' .. ARGV[4]
+redis.call('HSETNX', p .. 'stats', 'since', ARGV[2])
+redis.call('HINCRBY', p .. 'stats', status, 1)
+redis.call('HINCRBY', hour, status, 1)
+redis.call('PEXPIRE', hour, ARGV[5])
+return 1
+`;
+
+const HISTORY_LUA = `
+local p, from, to = ARGV[1], tonumber(ARGV[2]), tonumber(ARGV[3])
+local out = {}
+for hour = from, to do
+  local counts = redis.call('HGETALL', p .. 'hr:' .. hour)
+  if #counts > 0 then
+    out[#out + 1] = tostring(hour)
+    out[#out + 1] = counts
+  end
+end
 return out
 `;
 
@@ -202,7 +231,9 @@ export class KeyStore implements KeyPool {
       acquireForCheck: this.redis.createScript<LeaseReply>(ACQUIRE_FOR_CHECK_LUA),
       add: this.redis.createScript<number>(ADD_LUA),
       remove: this.redis.createScript<number>(REMOVE_LUA),
-      snapshot: this.redis.createScript<string[], true>(SNAPSHOT_LUA, { readonly: true }),
+      snapshot: this.redis.createScript<[string[], string[]], true>(SNAPSHOT_LUA, { readonly: true }),
+      record: this.redis.createScript<number>(RECORD_LUA),
+      history: this.redis.createScript<(string | string[])[], true>(HISTORY_LUA, { readonly: true }),
       update: this.redis.createScript<number>(UPDATE_LUA),
     };
   }
@@ -251,7 +282,7 @@ export class KeyStore implements KeyPool {
 
   private async read() {
     const now = this.clock();
-    const reply = await this.script.snapshot.evalRo([], [this.prefix, String(now), String(WINDOW_MS)]);
+    const [reply, stats] = await this.script.snapshot.evalRo([], [this.prefix, String(now), String(WINDOW_MS)]);
     const entries = [];
     for (let index = 0; index < reply.length; index += 6) {
       const [id, config, check, cooldownUntil, recentRequests, inFlight] = reply.slice(index, index + 6);
@@ -264,12 +295,36 @@ export class KeyStore implements KeyPool {
         inFlight: Number(inFlight),
       });
     }
-    return { now, entries };
+    const requests: RequestCounts = { byStatus: {}, since: null };
+    for (let index = 0; index < stats.length; index += 2) {
+      if (stats[index] === "since") requests.since = stats[index + 1];
+      else requests.byStatus[stats[index]] = Number(stats[index + 1]);
+    }
+    return { now, entries, requests };
   }
 
   async snapshot() {
-    const { now, entries } = await this.read();
-    return summarize("redis", now, entries);
+    const { now, entries, requests } = await this.read();
+    return summarize("redis", now, entries, requests);
+  }
+
+  async recordRequest(status: number) {
+    const now = this.clock();
+    const hour = Math.floor(now / HOUR_MS);
+    await this.script.record.exec([], [this.prefix, new Date(now).toISOString(), String(status), String(hour), String((HISTORY_HOURS + 1) * HOUR_MS)]);
+  }
+
+  async requestHistory(hours: number) {
+    const to = Math.floor(this.clock() / HOUR_MS);
+    const reply = await this.script.history.evalRo([], [this.prefix, String(to - Math.min(hours, HISTORY_HOURS) + 1), String(to)]);
+    const buckets: RequestBucket[] = [];
+    for (let index = 0; index < reply.length; index += 2) {
+      const counts = reply[index + 1] as string[];
+      const byStatus: Record<string, number> = {};
+      for (let field = 0; field < counts.length; field += 2) byStatus[counts[field]] = Number(counts[field + 1]);
+      buckets.push({ hour: Number(reply[index]) * HOUR_MS, byStatus });
+    }
+    return buckets;
   }
 
   private leaseArgs(token: string) {

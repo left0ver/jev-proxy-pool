@@ -53,4 +53,7 @@ test("代理认证、参数校验与请求上限响应", async () => {
   assert.ok(Number(limited.headers.get("Retry-After")) >= 1);
   for (const entry of (await keyStore.snapshot()).keys) await keyStore.remove(entry.id);
   assert.equal((await app.request("/v1/systemone", { method: "POST", headers: proxyHeaders, body })).status, 503);
+  const { requests } = await (await app.request("/api/admin/keys", { headers })).json();
+  assert.deepEqual([requests.total, requests.success, requests.error, requests.byStatus], [4, 0, 4, { 400: 1, 401: 1, 429: 1, 503: 1 }]);
+  assert.ok(requests.since);
 });

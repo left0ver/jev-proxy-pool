@@ -34,6 +34,18 @@
           <div class="stat"><span class="stat-label">可用 key</span><strong id="available-count">—</strong><span class="stat-note">可以接收新请求</span></div>
           <div class="stat"><span class="stat-label">每秒请求上限</span><strong id="capacity-count">—</strong><span class="stat-note">可用 key 数量 × 50</span></div>
         </div>
+        <div class="stats" aria-label="客户端请求统计">
+          <div class="stat"><span class="stat-label">客户端请求</span><strong id="request-total">—</strong><span id="request-since" class="stat-note">调用代理接口的总次数</span></div>
+          <div class="stat"><span class="stat-label">成功</span><strong id="request-success">—</strong><span id="request-success-note" class="stat-note">返回 2xx</span></div>
+          <div class="stat"><span class="stat-label">失败</span><strong id="request-error">—</strong><span id="request-error-note" class="stat-note">返回错误状态码</span></div>
+        </div>
+
+        <section class="panel trend-panel" aria-labelledby="trend-title">
+          <div class="panel-heading"><div><h2 id="trend-title">调用趋势</h2><p id="trend-description" class="field-hint"></p></div><div class="toolbar"><div class="segmented" role="group" aria-label="统计粒度"><button class="segment" type="button" data-range="hour" aria-pressed="true">小时</button><button class="segment" type="button" data-range="day" aria-pressed="false">天</button><button class="segment" type="button" data-range="week" aria-pressed="false">周</button></div></div></div>
+          <div class="trend-legend"><span><i class="swatch success" aria-hidden="true"></i>成功</span><span><i class="swatch error" aria-hidden="true"></i>失败</span><span id="trend-summary" class="trend-summary"></span></div>
+          <p id="trend-error" class="error-message panel-message" role="alert"></p>
+          <div id="trend-chart" class="trend-chart"><div id="trend-tooltip" class="trend-tooltip" hidden></div></div>
+        </section>
 
         <div class="workspace">
           <section class="panel keys-panel" aria-labelledby="keys-title">

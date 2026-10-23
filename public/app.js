@@ -1,4 +1,6 @@
 const storageKey = "jev.admin.password";
+// 页面上的时间统一按北京时间显示，不随浏览器时区变化。
+const TIME_ZONE = "Asia/Shanghai";
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 let password = "";
 let snapshot = null;
@@ -19,6 +21,10 @@ function showLogin(message = "") {
   password = "";
   snapshot = null;
   revealed.clear();
+  trend = null;
+  trendRequest += 1;
+  elements["trend-chart"].querySelector("svg")?.remove();
+  elements["trend-summary"].textContent = "";
   elements["key-rows"].replaceChildren();
   elements["dashboard"].hidden = true;
   elements["logout-button"].hidden = true;
@@ -66,6 +72,16 @@ function render() {
   elements["total-count"].textContent = snapshot.keys.length.toLocaleString();
   elements["available-count"].textContent = snapshot.available.toLocaleString();
   elements["capacity-count"].textContent = snapshot.maxRequestsPerSecond.toLocaleString();
+  const requests = snapshot.requests;
+  elements["request-total"].textContent = requests.total.toLocaleString();
+  elements["request-success"].textContent = requests.success.toLocaleString();
+  elements["request-error"].textContent = requests.error.toLocaleString();
+  const scope = fromEnv ? "当前实例" : "全部实例";
+  elements["request-since"].textContent = requests.since ? `${scope}，自 ${new Date(requests.since).toLocaleString("zh-CN", { timeZone: TIME_ZONE })} 起` : `${scope}，还没有请求`;
+  elements["request-success-note"].textContent = requests.total ? `成功率 ${(requests.success / requests.total * 100).toFixed(1)}%` : "返回 2xx";
+  const failures = Object.entries(requests.byStatus).filter(([status]) => !status.startsWith("2")).sort((a, b) => b[1] - a[1]);
+  elements["request-error-note"].textContent = failures.length ? failures.map(([status, count]) => `${status} × ${count.toLocaleString()}`).join(" · ") : "返回错误状态码";
+  elements["request-error-note"].title = elements["request-error-note"].textContent;
   elements["list-count"].textContent = snapshot.keys.length;
   elements["limit-description"].textContent = `每个 key 在任意连续 1 秒内最多 ${snapshot.rateLimit} 次请求`;
   elements["export-button"].disabled = snapshot.keys.length === 0 || !!bulkCheck;
@@ -101,14 +117,14 @@ function render() {
       }
     });
     keyRow.append(reveal, copy);
-    identity.append(keyRow, create("div", "key-time", `添加于 ${new Date(entry.createdAt).toLocaleDateString("zh-CN")}`));
+    identity.append(keyRow, create("div", "key-time", `添加于 ${new Date(entry.createdAt).toLocaleDateString("zh-CN", { timeZone: TIME_ZONE })}`));
     const stateCell = create("td");
     const labels = { available: "可用", busy: "请求已满", cooldown: `冷却 ${entry.cooldownSeconds} 秒`, disabled: "已停用" };
     stateCell.append(create("span", `status ${entry.status}`, labels[entry.status]));
     if (entry.disabledReason) stateCell.append(create("div", "status-reason", entry.disabledReason));
     if (entry.lastCheck) {
       const result = create("div", `status-reason check-result ${entry.lastCheck.status}`, `检测：${entry.lastCheck.message}`);
-      result.append(create("div", "check-time", new Date(entry.lastCheck.checkedAt).toLocaleString("zh-CN")));
+      result.append(create("div", "check-time", new Date(entry.lastCheck.checkedAt).toLocaleString("zh-CN", { timeZone: TIME_ZONE })));
       stateCell.append(result);
     }
     const usage = create("td", "usage", String(entry.recentRequests));
@@ -147,7 +163,200 @@ function render() {
 function applySnapshot(next) {
   snapshot = next;
   render();
-  elements["updated-at"].textContent = `${new Date().toLocaleTimeString("zh-CN")} 更新`;
+  elements["updated-at"].textContent = `${new Date().toLocaleTimeString("zh-CN", { timeZone: TIME_ZONE })} 更新`;
+}
+
+// 调用趋势：服务端按小时返回，这里按北京时间汇总成小时、天或周（周一开始）。
+// 北京时间固定为 UTC+8、没有夏令时：时间戳加 8 小时后用 UTC 方法取得的日期和钟点就是北京时间。
+const HOUR_MS = 3600000;
+const BEIJING_OFFSET_MS = 8 * HOUR_MS;
+const beijing = (time) => new Date(time + BEIJING_OFFSET_MS);
+const pad = (value) => String(value).padStart(2, "0");
+const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+const dateText = (date) => `${date.getUTCFullYear()}/${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
+const SVG_NS = "http://www.w3.org/2000/svg";
+const trendRanges = {
+  hour: {
+    count: 24,
+    description: "最近 24 小时，按小时统计（北京时间）",
+    start: (date) => date.setUTCMinutes(0, 0, 0),
+    step: (date, count) => date.setUTCHours(date.getUTCHours() + count),
+    label: (date) => `${pad(date.getUTCHours())}:00`,
+    title: (date) => `${date.getUTCMonth() + 1}/${date.getUTCDate()} ${pad(date.getUTCHours())}:00`,
+  },
+  day: {
+    count: 30,
+    description: "最近 30 天，按天统计（北京时间）",
+    start: (date) => date.setUTCHours(0, 0, 0, 0),
+    step: (date, count) => date.setUTCDate(date.getUTCDate() + count),
+    label: (date) => `${date.getUTCMonth() + 1}/${date.getUTCDate()}`,
+    title: (date) => `${dateText(date)} ${WEEKDAYS[date.getUTCDay()]}`,
+  },
+  week: {
+    count: 12,
+    description: "最近 12 周，按周统计（北京时间，每周从周一开始）",
+    start: (date) => { date.setUTCHours(0, 0, 0, 0); date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7); },
+    step: (date, count) => date.setUTCDate(date.getUTCDate() + count * 7),
+    label: (date) => `${date.getUTCMonth() + 1}/${date.getUTCDate()}`,
+    title: (date) => `${dateText(date)} 起的一周`,
+  },
+};
+const compact = new Intl.NumberFormat("zh-CN", { notation: "compact" });
+let trendRange = "hour";
+let trend = null;
+let trendRequest = 0;
+
+function trendPeriods(range) {
+  const config = trendRanges[range];
+  const current = beijing(Date.now());
+  config.start(current);
+  const boundaries = [];
+  for (let offset = config.count - 1; offset >= -1; offset -= 1) {
+    const date = new Date(current);
+    config.step(date, -offset);
+    boundaries.push(date.getTime() - BEIJING_OFFSET_MS);
+  }
+  return boundaries.slice(0, -1).map((start, index) => ({ start, end: boundaries[index + 1], total: 0, success: 0, error: 0, byStatus: {} }));
+}
+
+async function loadTrend() {
+  if (!password) return;
+  const id = ++trendRequest;
+  const range = trendRange;
+  const periods = trendPeriods(range);
+  const hours = Math.ceil((Date.now() - periods[0].start) / HOUR_MS) + 1;
+  elements["trend-chart"].classList.add("loading");
+  try {
+    const { buckets } = await (await request(`/api/admin/requests/history?hours=${hours}`)).json();
+    if (id !== trendRequest) return;
+    for (const bucket of buckets) {
+      const period = periods.find(({ start, end }) => bucket.hour >= start && bucket.hour < end);
+      if (!period) continue;
+      for (const [status, count] of Object.entries(bucket.byStatus)) {
+        period.total += count;
+        period.byStatus[status] = (period.byStatus[status] ?? 0) + count;
+        if (status.startsWith("2")) period.success += count;
+        else period.error += count;
+      }
+    }
+    trend = { range, periods };
+    elements["trend-error"].textContent = "";
+    renderTrend();
+  } catch (error) {
+    if (id === trendRequest && password) elements["trend-error"].textContent = error.message;
+  } finally {
+    if (id === trendRequest) elements["trend-chart"].classList.remove("loading");
+  }
+}
+
+function svg(tag, attributes = {}) {
+  const element = document.createElementNS(SVG_NS, tag);
+  for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
+  return element;
+}
+
+/** 纵轴上限取整，分成 4 格。 */
+function niceMax(value) {
+  if (value <= 4) return 4;
+  const unit = 10 ** Math.floor(Math.log10(value / 4));
+  return [1, 2, 2.5, 5, 10].map((step) => step * unit).find((step) => step * 4 >= value) * 4;
+}
+
+/** 顶端圆角、底端方角的柱子。 */
+function barPath(x, top, width, bottom, radius) {
+  const r = Math.min(radius, width / 2, bottom - top);
+  return `M${x},${bottom}V${top + r}A${r},${r} 0 0 1 ${x + r},${top}H${x + width - r}A${r},${r} 0 0 1 ${x + width},${top + r}V${bottom}Z`;
+}
+
+const failureText = (byStatus) => Object.entries(byStatus).filter(([status]) => !status.startsWith("2")).sort((a, b) => b[1] - a[1]).map(([status, count]) => `${status} × ${count.toLocaleString()}`).join(" · ");
+
+function showTrendTooltip(period, centerX) {
+  const config = trendRanges[trend.range];
+  const tooltip = elements["trend-tooltip"];
+  const row = (kind, value, label) => {
+    const line = create("div", "tip-row");
+    line.append(create("span", `tip-key ${kind}`), create("strong", "", value.toLocaleString()), create("span", "", label));
+    return line;
+  };
+  tooltip.replaceChildren(create("div", "tip-title", config.title(beijing(period.start))), row("total", period.total, "总数"), row("success", period.success, "成功"), row("error", period.error, "失败"));
+  const failures = failureText(period.byStatus);
+  if (failures) tooltip.append(create("div", "tip-detail", failures));
+  tooltip.hidden = false;
+  const width = elements["trend-chart"].clientWidth;
+  const left = centerX + 14 + tooltip.offsetWidth > width ? centerX - 14 - tooltip.offsetWidth : centerX + 14;
+  tooltip.style.left = `${Math.max(0, left)}px`;
+}
+
+function renderTrend() {
+  const chart = elements["trend-chart"];
+  const range = trendRanges[trendRange];
+  elements["trend-description"].textContent = snapshot?.storage === "env" ? `${range.description}，仅当前实例` : range.description;
+  elements["trend-tooltip"].hidden = true;
+  if (!trend) return;
+  const { periods } = trend;
+  const config = trendRanges[trend.range];
+  const sum = periods.reduce((acc, period) => ({ total: acc.total + period.total, success: acc.success + period.success, error: acc.error + period.error }), { total: 0, success: 0, error: 0 });
+  elements["trend-summary"].textContent = `合计 ${sum.total.toLocaleString()} 次 · 成功 ${sum.success.toLocaleString()} · 失败 ${sum.error.toLocaleString()}`;
+
+  const style = getComputedStyle(chart);
+  const width = Math.max(300, chart.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight));
+  const height = 220;
+  const margin = { top: 12, right: 8, bottom: 28, left: 44 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const baseline = margin.top + plotHeight;
+  const max = niceMax(Math.max(...periods.map(({ total }) => total)));
+  const band = plotWidth / periods.length;
+  const barWidth = Math.min(24, Math.max(4, band - 6));
+  const root = svg("svg", { width, height, viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": `${config.description}的成功与失败请求数` });
+
+  for (let tick = 0; tick <= 4; tick += 1) {
+    const y = baseline - tick / 4 * plotHeight;
+    root.append(svg("line", { class: "trend-grid", x1: margin.left, x2: width - margin.right, y1: y, y2: y }));
+    const label = svg("text", { class: "trend-axis", x: margin.left - 8, y: y + 3, "text-anchor": "end" });
+    label.textContent = compact.format(max * tick / 4);
+    root.append(label);
+  }
+  const every = Math.ceil(periods.length / Math.max(1, Math.floor(plotWidth / 48)));
+  periods.forEach((period, index) => {
+    const x = margin.left + band * index;
+    const group = svg("g", { class: "trend-column" });
+    group.append(svg("rect", { class: "trend-band", x: x + 1, y: margin.top, width: Math.max(0, band - 2), height: plotHeight, rx: 4 }));
+    // 成功在下、失败在上，两段之间留 2px 间隔，最上面一段圆角。
+    const segments = [["success", period.success], ["error", period.error]].filter(([, value]) => value > 0);
+    let bottom = baseline;
+    segments.forEach(([kind, value], segment) => {
+      const top = bottom - Math.max(2, value / max * plotHeight);
+      const barX = x + (band - barWidth) / 2;
+      const d = segment === segments.length - 1 ? barPath(barX, top, barWidth, bottom, 4) : `M${barX},${bottom}V${top}H${barX + barWidth}V${bottom}Z`;
+      group.append(svg("path", { class: `bar-${kind}`, d }));
+      bottom = top - 2;
+    });
+    if ((periods.length - 1 - index) % every === 0) {
+      const label = svg("text", { class: "trend-axis", x: x + band / 2, y: height - 8, "text-anchor": "middle" });
+      label.textContent = config.label(beijing(period.start));
+      group.append(label);
+    }
+    const hit = svg("rect", { class: "trend-hit", x, y: 0, width: band, height, tabindex: 0, "aria-label": `${config.title(beijing(period.start))}：总数 ${period.total}，成功 ${period.success}，失败 ${period.error}` });
+    const enter = () => {
+      group.classList.add("active");
+      showTrendTooltip(period, root.getBoundingClientRect().left - chart.getBoundingClientRect().left + x + band / 2);
+    };
+    const leave = () => { group.classList.remove("active"); elements["trend-tooltip"].hidden = true; };
+    hit.addEventListener("pointerenter", enter);
+    hit.addEventListener("focus", enter);
+    hit.addEventListener("pointerleave", leave);
+    hit.addEventListener("blur", leave);
+    group.append(hit);
+    root.append(group);
+  });
+  if (sum.total === 0) {
+    const empty = svg("text", { class: "trend-empty", x: margin.left + plotWidth / 2, y: margin.top + plotHeight / 2, "text-anchor": "middle" });
+    empty.textContent = "这段时间没有请求";
+    root.append(empty);
+  }
+  chart.querySelector("svg")?.remove();
+  chart.prepend(root);
 }
 
 async function refresh() {
@@ -157,6 +366,7 @@ async function refresh() {
   try {
     applySnapshot(await (await request("/api/admin/keys")).json());
     elements["dashboard-error"].textContent = "";
+    loadTrend();
   } finally {
     loading = false;
     elements["refresh-button"].disabled = false;
@@ -292,6 +502,17 @@ elements["logout-button"].addEventListener("click", () => {
 elements["search"].addEventListener("input", render);
 elements["refresh-button"].addEventListener("click", () => refresh().catch(showError));
 elements["check-all-button"].addEventListener("click", checkAllEntries);
+for (const button of document.querySelectorAll(".segment")) {
+  button.addEventListener("click", () => {
+    if (trendRange === button.dataset.range) return;
+    trendRange = button.dataset.range;
+    document.querySelectorAll(".segment").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+    renderTrend();
+    loadTrend();
+  });
+}
+// 宽度变化时按新宽度重画，柱子和文字不会被拉伸。
+new ResizeObserver(() => { if (trend) renderTrend(); }).observe(elements["trend-chart"]);
 
 elements["add-form"].addEventListener("submit", async (event) => {
   event.preventDefault();

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { HISTORY_HOURS, HOUR_MS } from "../lib/key-pool.js";
 import { KeyStore, PoolError } from "../lib/key-store.js";
 import { keys, testStore } from "./helpers.js";
 
@@ -128,6 +129,31 @@ test("停用和冷却会影响选择与容量，已经尝试的冷却 key 仍然
   const recovered = await store.acquire();
   assert.equal(recovered.key, keys[1]);
   await recovered.release();
+});
+
+test("代理接口按状态码统计，多个实例共用同一份计数", async () => {
+  const { store, clock, prefix } = testStore();
+  const other = new KeyStore({ prefix, clock: () => clock.now });
+  assert.deepEqual((await store.snapshot()).requests, { total: 0, success: 0, error: 0, byStatus: {}, since: null });
+  const since = new Date(clock.now).toISOString();
+  await Promise.all([200, 200, 429].map((status) => store.recordRequest(status)));
+  clock.now += 1000;
+  await other.recordRequest(401);
+  assert.deepEqual((await other.snapshot()).requests, { total: 4, success: 2, error: 2, byStatus: { 200: 2, 401: 1, 429: 1 }, since });
+});
+
+test("调用趋势按小时分桶，多个实例共用", async () => {
+  const { store, clock, prefix } = testStore();
+  const other = new KeyStore({ prefix, clock: () => clock.now });
+  clock.now = Math.floor(clock.now / HOUR_MS) * HOUR_MS;
+  const start = clock.now;
+  await Promise.all([store.recordRequest(200), other.recordRequest(429)]);
+  clock.now += 2 * HOUR_MS;
+  await other.recordRequest(200);
+  assert.deepEqual(await store.requestHistory(3), [{ hour: start, byStatus: { 200: 1, 429: 1 } }, { hour: start + 2 * HOUR_MS, byStatus: { 200: 1 } }]);
+  assert.deepEqual(await store.requestHistory(1), [{ hour: start + 2 * HOUR_MS, byStatus: { 200: 1 } }]);
+  const ttl = await store.redis.pttl(`${prefix}hr:${start / HOUR_MS}`);
+  assert.ok(ttl > (HISTORY_HOURS - 1) * HOUR_MS && ttl <= (HISTORY_HOURS + 1) * HOUR_MS);
 });
 
 test("连续限流时冷却时间按指数增长，成功后重置", async () => {

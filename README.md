@@ -24,12 +24,13 @@
 - Rotates through available keys in order, with at most 50 upstream calls per key per second
 - Disables a key automatically when upstream returns `401` / `402`, and pauses it and switches to another key on `429`
 - Web admin panel for keys: add, check, search, delete, plus JSONL import and export
+- The admin panel shows how many times clients called the proxy, how many calls succeeded and how many failed, with failures counted per status code, plus a chart of calls per hour (last 24 hours), day (last 30 days) or week (last 12 weeks) in Beijing time (UTC+8)
 - Keys and request counters live in Redis (Upstash), shared by every instance and kept across redeploys
 - Optional Redis-free mode: keys come from an environment variable (see [Running without Redis](#running-without-redis))
 - One-click deployment to Vercel
 
 > [!NOTE]
-> Each proxied request uses about 3 Redis commands (pick a key, release the slot, reset the rate-limit streak on success), and each refresh of the admin list uses 1. Keep an eye on the command quota of your Upstash plan.
+> Each proxied request uses about 4 Redis commands (pick a key, release the slot, record the request count, reset the rate-limit streak on success), and each refresh of the admin panel uses 2 (the key list and the call chart). Keep an eye on the command quota of your Upstash plan.
 
 <a id="running-without-redis"></a>
 
@@ -40,7 +41,7 @@
 >
 > - To add or remove keys, edit `TYPESAFE_API_KEYS` and redeploy. The admin panel can only check and export keys.
 > - Each instance enforces the 50 requests per second limit on its own, so when Vercel runs several instances, a key can receive more than that in total.
-> - Keys disabled after `401` / `402`, cooldowns and check results reset when an instance restarts, and are not shared with other instances. The admin panel shows the state of whichever instance answered.
+> - Keys disabled after `401` / `402`, cooldowns, check results and request counts reset when an instance restarts, and are not shared with other instances. The admin panel shows the state of whichever instance answered.
 
 ## Quick start
 

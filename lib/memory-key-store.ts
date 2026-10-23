@@ -3,6 +3,8 @@ import { z } from "zod";
 import {
   configSchema,
   exportConfigs,
+  HISTORY_HOURS,
+  HOUR_MS,
   keyId,
   MAX_KEYS,
   PoolError,
@@ -13,6 +15,8 @@ import {
   type KeyConfig,
   type KeyPool,
   type Lease,
+  type RequestBucket,
+  type RequestCounts,
 } from "./key-pool.js";
 
 export const KEYS_ENV = "TYPESAFE_API_KEYS";
@@ -64,13 +68,16 @@ export type MemoryKeyStoreOptions = {
 
 /**
  * 不使用 Redis 时的 key 池：key 列表来自环境变量，所有实例相同；
- * 请求计数、冷却、停用和检测结果只保存在当前实例内存中，重新部署或实例回收后恢复为环境变量中的配置。
+ * 请求计数、冷却、停用、检测结果和代理接口的调用统计只保存在当前实例内存中，重新部署或实例回收后恢复为环境变量中的配置。
  */
 export class MemoryKeyStore implements KeyPool {
   private readonly source?: string;
   private readonly clock: () => number;
   private states?: Map<string, KeyState>;
   private cursor = 0;
+  private readonly requests: RequestCounts = { byStatus: {}, since: null };
+  /** 小时序号 → 各状态码次数，按时间顺序插入。 */
+  private readonly hours = new Map<number, Record<string, number>>();
 
   constructor(options: MemoryKeyStoreOptions = {}) {
     this.source = options.source;
@@ -116,7 +123,25 @@ export class MemoryKeyStore implements KeyPool {
 
   async snapshot() {
     const now = this.clock();
-    return summarize("env", now, this.entries(now));
+    return summarize("env", now, this.entries(now), { byStatus: { ...this.requests.byStatus }, since: this.requests.since });
+  }
+
+  async recordRequest(status: number) {
+    this.requests.since ??= new Date(this.clock()).toISOString();
+    this.requests.byStatus[status] = (this.requests.byStatus[status] ?? 0) + 1;
+    const hour = Math.floor(this.clock() / HOUR_MS);
+    for (const old of this.hours.keys()) {
+      if (old > hour - HISTORY_HOURS) break;
+      this.hours.delete(old);
+    }
+    const counts = this.hours.get(hour) ?? {};
+    counts[status] = (counts[status] ?? 0) + 1;
+    this.hours.set(hour, counts);
+  }
+
+  async requestHistory(hours: number): Promise<RequestBucket[]> {
+    const from = Math.floor(this.clock() / HOUR_MS) - Math.min(hours, HISTORY_HOURS) + 1;
+    return [...this.hours].filter(([hour]) => hour >= from).map(([hour, byStatus]) => ({ hour: hour * HOUR_MS, byStatus: { ...byStatus } }));
   }
 
   private availableAt(state: KeyState, now: number) {
