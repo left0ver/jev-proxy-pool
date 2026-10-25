@@ -27,7 +27,7 @@
 - The admin panel shows how many times clients called the proxy, how many calls succeeded and how many failed, with failures counted per status code, plus a chart of calls per hour (last 24 hours), day (last 30 days) or week (last 12 weeks) in Beijing time (UTC+8)
 - Keys and request counters live in Redis (Upstash), shared by every instance and kept across redeploys
 - Optional Redis-free mode: keys come from an environment variable (see [Running without Redis](#running-without-redis))
-- One-click deployment to Vercel
+- One-click deployment to Vercel, or a single Docker Compose command on your own server
 
 > [!NOTE]
 > Each proxied request uses about 4 Redis commands (pick a key, release the slot, record the request count, reset the rate-limit streak on success), and each refresh of the admin panel uses 2 (the key list and the call chart). Keep an eye on the command quota of your Upstash plan.
@@ -55,6 +55,15 @@
 
 To skip Redis, use the **Deploy without Redis** button instead: no database is created, `USE_REDIS` is prefilled with `false`, and you enter your keys in `TYPESAFE_API_KEYS`, separated by commas. See [Running without Redis](#running-without-redis) for what changes in this mode.
 
+### Deploy with Docker
+
+```bash
+git clone https://github.com/left0ver/jev-proxy-pool.git
+cd jev-proxy-pool
+printf 'ADMIN_PASSWORD=%s\nAUTHORIZATION_TOKEN=%s\n' "$(openssl rand -hex 16)" "$(openssl rand -hex 24)" > .env && cat .env
+docker compose up -d --build
+```
+
 ### Run locally
 
 Requires Node.js 22.9 or later and an Upstash Redis database (create one for free in the [Upstash console](https://console.upstash.com)).
@@ -81,7 +90,7 @@ Open `http://127.0.0.1:3000`, sign in, and add your keys.
 | `TYPESAFE_API_KEYS` | When `USE_REDIS=false` | Keys, one per line or separated by commas; JSONL lines exported from the admin panel also work |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Unless `USE_REDIS=false` | Upstash Redis REST URL and token, added automatically when the database is connected on Vercel; `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` also work |
 | `REDIS_KEY_PREFIX` | No | Prefix for Redis keys, defaults to `jev:` |
-| `PORT` | No | Local development port, defaults to `3000` |
+| `PORT` | No | Local development port, defaults to `3000`; with Docker Compose, the port published on the host, defaults to `8791` |
 
 Use different random strings for `ADMIN_PASSWORD` and `AUTHORIZATION_TOKEN`.
 

@@ -27,7 +27,7 @@
 - 管理页面显示客户端调用代理接口的总次数、成功次数和失败次数，失败按状态码分别统计；调用趋势图可以按小时（最近 24 小时）、天（最近 30 天）和周（最近 12 周）查看，按北京时间汇总
 - key 和请求计数保存在 Redis（Upstash）中，多个实例共用，重新部署后不丢失
 - 可选不使用 Redis，从环境变量读取 key（见[不使用 Redis](#running-without-redis)）
-- 支持一键部署到 Vercel
+- 支持一键部署到 Vercel，也可以在自己的服务器上用一条 Docker Compose 命令部署
 
 > [!NOTE]
 > 每次代理请求大约消耗 4 条 Redis 命令（选择 key、释放名额、记录请求统计，成功后重置限流次数），管理页面每次刷新 2 条（key 列表和调用趋势各 1 条）。请留意 Upstash 套餐的命令额度。
@@ -55,6 +55,16 @@
 
 如果不想使用 Redis，可以改用**不使用 Redis 部署**按钮：不会创建数据库，`USE_REDIS` 已预填为 `false`，只需在 `TYPESAFE_API_KEYS` 中填写 key，多个 key 用英文逗号分隔。这种模式的区别见[不使用 Redis](#running-without-redis)。
 
+### 使用 Docker 部署
+
+
+```bash
+git clone https://github.com/left0ver/jev-proxy-pool.git
+cd jev-proxy-pool
+printf 'ADMIN_PASSWORD=%s\nAUTHORIZATION_TOKEN=%s\n' "$(openssl rand -hex 16)" "$(openssl rand -hex 24)" > .env && cat .env
+docker compose up -d --build
+```
+
 ### 本地运行
 
 需要 Node.js 22.9 或更高版本，以及一个 Upstash Redis 数据库（可以在 [Upstash 控制台](https://console.upstash.com) 免费创建）。
@@ -81,7 +91,7 @@ npm run dev
 | `TYPESAFE_API_KEYS` | `USE_REDIS=false` 时必填 | key 列表，每行一个或用逗号分隔，也可以使用管理页面导出的 JSONL |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | 除非 `USE_REDIS=false` | Upstash Redis 的 REST 地址和 token，在 Vercel 上连接数据库后自动添加；也可以使用 `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` |
 | `REDIS_KEY_PREFIX` | 否 | Redis key 前缀，默认 `jev:` |
-| `PORT` | 否 | 本地开发端口，默认 `3000` |
+| `PORT` | 否 | 本地开发端口，默认 `3000`；使用 Docker Compose 时为服务器对外端口，默认 `8791` |
 
 `ADMIN_PASSWORD` 和 `AUTHORIZATION_TOKEN` 建议使用不同的随机字符串。
 
