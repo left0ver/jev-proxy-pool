@@ -1,0 +1,9 @@
+node_modules/
+.git/
+.vercel/
+.env*
+.key-check/
+.claude/
+.agents/
+docs/
+tests/
