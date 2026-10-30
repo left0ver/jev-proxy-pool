@@ -36,6 +36,7 @@ test("添加、导入和删除返回 403，不修改 key 列表", async () => {
   await assert.rejects(store.add([{ key: second }]), isPoolError(403));
   await assert.rejects(store.import(JSON.stringify({ key: second })), isPoolError(403));
   await assert.rejects(store.remove((await store.snapshot()).keys[0].id), isPoolError(403));
+  await assert.rejects(store.removeMany([(await store.snapshot()).keys[0].id]), isPoolError(403));
   assert.equal((await store.snapshot()).keys.length, 1);
 });
 
@@ -122,6 +123,7 @@ test("USE_REDIS=false 时管理接口读取环境变量中的 key", async () => 
   assert.equal(create.status, 403);
   assert.match((await create.json()).error, /TYPESAFE_API_KEYS/);
   assert.equal((await app.request(`/api/admin/keys/${snapshot.keys[0].id}`, { method: "DELETE", headers })).status, 403);
+  assert.equal((await app.request("/api/admin/keys/delete", { method: "POST", headers, body: JSON.stringify({ ids: [snapshot.keys[0].id] }) })).status, 403);
   assert.ok((await (await app.request("/api/admin/keys/export", { headers })).text()).includes(envKeys[1]));
   assert.equal((await app.request("/v1/systemone", { method: "POST", body: "{}" })).status, 401);
   assert.equal((await app.request("/api/v1/systemone", { method: "POST", body: "{}" })).status, 401);

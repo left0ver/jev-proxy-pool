@@ -111,20 +111,27 @@ end
 return count
 `;
 
+// 删除 ARGV[2..] 中的 key，不存在的 id 跳过，返回实际删除的数量。
 const REMOVE_LUA = `
-local p, id = ARGV[1], ARGV[2]
-local rank = redis.call('ZRANK', p .. 'ids', id)
-if not rank then return 0 end
-redis.call('ZREM', p .. 'ids', id)
-redis.call('HDEL', p .. 'cfg', id)
-redis.call('HDEL', p .. 'check', id)
-redis.call('HDEL', p .. 'cool', id)
-redis.call('HDEL', p .. 'fails', id)
-local n = redis.call('ZCARD', p .. 'ids')
+local p = ARGV[1]
 local cursor = tonumber(redis.call('GET', p .. 'cursor') or '0')
-if rank < cursor then cursor = cursor - 1 end
-redis.call('SET', p .. 'cursor', cursor % math.max(n, 1))
-return 1
+local removed = 0
+for i = 2, #ARGV do
+  local id = ARGV[i]
+  local rank = redis.call('ZRANK', p .. 'ids', id)
+  if rank then
+    redis.call('ZREM', p .. 'ids', id)
+    redis.call('HDEL', p .. 'cfg', id)
+    redis.call('HDEL', p .. 'check', id)
+    redis.call('HDEL', p .. 'cool', id)
+    redis.call('HDEL', p .. 'fails', id)
+    if rank < cursor then cursor = cursor - 1 end
+    removed = removed + 1
+  end
+end
+if removed == 0 then return 0 end
+redis.call('SET', p .. 'cursor', cursor % math.max(redis.call('ZCARD', p .. 'ids'), 1))
+return removed
 `;
 
 const SNAPSHOT_LUA = `
@@ -278,6 +285,10 @@ export class KeyStore implements KeyPool {
 
   async remove(id: string) {
     if (!await this.script.remove.exec([], [this.prefix, id])) throw new PoolError("找不到这个 key", 404);
+  }
+
+  async removeMany(ids: string[]) {
+    return ids.length ? this.script.remove.exec([], [this.prefix, ...new Set(ids)]) : 0;
   }
 
   private async read() {

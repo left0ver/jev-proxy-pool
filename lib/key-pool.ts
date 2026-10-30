@@ -93,6 +93,8 @@ export interface KeyPool {
   import(document: string): Promise<number>;
   export(): Promise<string>;
   remove(id: string): Promise<void>;
+  /** 删除多个 key，不存在的 id 跳过，返回实际删除的数量。 */
+  removeMany(ids: string[]): Promise<number>;
   snapshot(): Promise<Snapshot>;
   acquire(excluded?: Set<string>): Promise<Lease>;
   acquireForCheck(id: string): Promise<Lease>;

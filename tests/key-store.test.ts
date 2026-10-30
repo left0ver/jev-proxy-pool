@@ -75,6 +75,22 @@ test("删除后重新添加同一个 key 保留当前一秒计数", async () => 
   await assert.rejects(store.acquire(), isPoolError(429));
 });
 
+test("批量删除跳过不存在和重复的 id，轮换位置保持不变", async () => {
+  const { store } = testStore();
+  await store.add(keys.slice(0, 2).map((key) => ({ key })));
+  await (await store.acquire()).release();
+  const [first, second] = (await store.snapshot()).keys;
+  assert.equal(await store.removeMany([first.id, "missing", first.id]), 1);
+  assert.equal(await store.removeMany(["missing"]), 0);
+  assert.equal(await store.removeMany([]), 0);
+  assert.deepEqual((await store.snapshot()).keys.map(({ id }) => id), [second.id]);
+  const lease = await store.acquire();
+  assert.equal(lease.key, keys[1]);
+  await lease.release();
+  assert.equal(await store.removeMany([second.id]), 1);
+  assert.equal((await store.snapshot()).keys.length, 0);
+});
+
 test("指定 key 的检测共用请求上限，停用后仍然允许检测", async () => {
   const { store } = testStore();
   await store.add(keys.slice(0, 2).map((key) => ({ key })));

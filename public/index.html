@@ -49,12 +49,12 @@
 
         <div class="workspace">
           <section class="panel keys-panel" aria-labelledby="keys-title">
-            <div class="panel-heading"><div><h2 id="keys-title">Key 列表 <span id="list-count" class="count-badge">0</span></h2><p id="limit-description" class="field-hint"></p></div><div class="toolbar"><button id="check-all-button" class="button quiet small" type="button" title="检测全部 key，包括已停用和搜索结果之外的 key" disabled>检测全部</button><button id="export-button" class="button quiet small" type="button">导出全部</button><button id="refresh-button" class="button quiet small" type="button">刷新列表</button></div></div>
+            <div class="panel-heading"><div><h2 id="keys-title">Key 列表 <span id="list-count" class="count-badge">0</span></h2><p id="limit-description" class="field-hint"></p></div><div class="toolbar"><button id="check-all-button" class="button quiet small" type="button" title="检测全部 key，包括已停用和搜索结果之外的 key" disabled>检测全部</button><button id="delete-selected-button" class="button quiet small danger-text" type="button" disabled>删除所选</button><button id="delete-failed-button" class="button quiet small danger-text" type="button" title="删除全部已停用的 key：上游返回 401 / 402，或检测结果为无效、额度不足" disabled>删除失败 key</button><button id="export-button" class="button quiet small" type="button">导出全部</button><button id="refresh-button" class="button quiet small" type="button">刷新列表</button></div></div>
             <div class="search-row"><label class="sr-only" for="search">搜索名称或 key</label><input id="search" type="search" placeholder="搜索名称或 key" autocomplete="off"><span id="updated-at" class="updated-at"></span></div>
             <p id="dashboard-error" class="error-message panel-message" role="alert"></p>
             <p id="notice" class="notice panel-message" role="status" aria-live="polite"></p>
             <p id="bulk-check-status" class="notice panel-message" role="status" aria-live="polite"></p>
-            <div class="table-scroll"><table><thead><tr><th scope="col">名称 / Key</th><th scope="col">状态</th><th scope="col">最近 1 秒</th><th scope="col">进行中</th><th scope="col"><span class="sr-only">操作</span></th></tr></thead><tbody id="key-rows"></tbody></table></div>
+            <div class="table-scroll"><table><thead><tr><th id="select-header" class="select-cell" scope="col"><input id="select-all" type="checkbox" aria-label="选择列表中显示的全部 key"></th><th scope="col">名称 / Key</th><th scope="col">状态</th><th scope="col">最近 1 秒</th><th scope="col">进行中</th><th scope="col"><span class="sr-only">操作</span></th></tr></thead><tbody id="key-rows"></tbody></table></div>
             <div id="empty-state" class="empty-state" hidden><span class="empty-symbol" aria-hidden="true">＋</span><h3 id="empty-title">还没有保存 key</h3><p id="empty-description">添加一个 key，开始接收请求。</p></div>
           </section>
 

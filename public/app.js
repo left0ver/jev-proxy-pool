@@ -4,11 +4,13 @@ const TIME_ZONE = "Asia/Shanghai";
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 let password = "";
 let snapshot = null;
+/** 待删除的 key 列表，删除对话框确认后一次提交。 */
 let deleteTarget = null;
 let loading = false;
 let bulkCheck = null;
 const revealed = new Set();
 const checking = new Set();
+const selected = new Set();
 
 function authorization() {
   const bytes = new TextEncoder().encode(`admin:${password}`);
@@ -21,6 +23,7 @@ function showLogin(message = "") {
   password = "";
   snapshot = null;
   revealed.clear();
+  selected.clear();
   trend = null;
   trendRequest += 1;
   elements["trend-chart"].querySelector("svg")?.remove();
@@ -89,8 +92,36 @@ function render() {
   elements["check-all-button"].textContent = bulkCheck ? `检测中 ${bulkCheck.completed}/${bulkCheck.total}` : "检测全部";
   const query = elements["search"].value.trim().toLowerCase();
   const entries = snapshot.keys.filter((entry) => `${entry.name} ${entry.key}`.toLowerCase().includes(query));
+  const failed = snapshot.keys.filter((entry) => entry.status === "disabled");
+  elements["delete-selected-button"].hidden = fromEnv;
+  elements["delete-selected-button"].disabled = selected.size === 0 || !!bulkCheck;
+  elements["delete-selected-button"].textContent = selected.size ? `删除所选 (${selected.size})` : "删除所选";
+  elements["delete-failed-button"].hidden = fromEnv;
+  elements["delete-failed-button"].disabled = failed.length === 0 || !!bulkCheck;
+  elements["delete-failed-button"].textContent = failed.length ? `删除失败 key (${failed.length})` : "删除失败 key";
+  // 全选只作用于当前搜索结果。
+  const selectedCount = entries.filter((entry) => selected.has(entry.id)).length;
+  elements["select-header"].hidden = fromEnv;
+  elements["select-all"].checked = entries.length > 0 && selectedCount === entries.length;
+  elements["select-all"].indeterminate = selectedCount > 0 && selectedCount < entries.length;
+  elements["select-all"].disabled = entries.length === 0 || !!bulkCheck;
   const rows = entries.map((entry) => {
     const row = create("tr");
+    if (!fromEnv) {
+      const selectCell = create("td", "select-cell");
+      const box = create("input");
+      box.type = "checkbox";
+      box.checked = selected.has(entry.id);
+      box.disabled = !!bulkCheck;
+      box.setAttribute("aria-label", `选择 ${entry.name || entry.key.slice(-8)}`);
+      box.addEventListener("change", () => {
+        if (box.checked) selected.add(entry.id);
+        else selected.delete(entry.id);
+        render();
+      });
+      selectCell.append(box);
+      row.append(selectCell);
+    }
     const identity = create("td");
     identity.append(create("div", "key-name", entry.name || `Key · ${entry.key.slice(-8)}`));
     const keyRow = create("div", "key-value-row");
@@ -142,12 +173,7 @@ function render() {
     remove.disabled = checking.has(entry.id) || !!bulkCheck;
     remove.dataset.id = entry.id;
     remove.setAttribute("aria-label", `删除 ${entry.name || entry.key.slice(-8)}`);
-    remove.addEventListener("click", () => {
-      deleteTarget = entry;
-      elements["delete-description"].textContent = `${entry.name || "API key"} · ${entry.key.slice(-8)}`;
-      elements["delete-error"].textContent = "";
-      elements["delete-dialog"].showModal();
-    });
+    remove.addEventListener("click", () => openDelete([entry], "删除这个 key？"));
     actions.append(check);
     if (!fromEnv) actions.append(remove);
     action.append(actions);
@@ -162,6 +188,8 @@ function render() {
 
 function applySnapshot(next) {
   snapshot = next;
+  const ids = new Set(next.keys.map(({ id }) => id));
+  for (const id of selected) if (!ids.has(id)) selected.delete(id);
   render();
   elements["updated-at"].textContent = `${new Date().toLocaleTimeString("zh-CN", { timeZone: TIME_ZONE })} 更新`;
 }
@@ -534,17 +562,46 @@ elements["add-form"].addEventListener("submit", async (event) => {
   }
 });
 
+function openDelete(entries, title) {
+  if (!entries.length || bulkCheck) return;
+  deleteTarget = entries;
+  const names = entries.slice(0, 3).map((entry) => `${entry.name || "API key"} · ${entry.key.slice(-8)}`).join("、");
+  elements["delete-title"].textContent = title;
+  elements["delete-description"].textContent = entries.length > 3 ? `${names} 等 ${entries.length} 个 key` : names;
+  elements["delete-error"].textContent = "";
+  elements["delete-dialog"].showModal();
+}
+
+elements["delete-selected-button"].addEventListener("click", () => {
+  const entries = snapshot?.keys.filter((entry) => selected.has(entry.id)) ?? [];
+  openDelete(entries, `删除所选的 ${entries.length} 个 key？`);
+});
+elements["delete-failed-button"].addEventListener("click", () => {
+  const entries = snapshot?.keys.filter((entry) => entry.status === "disabled") ?? [];
+  openDelete(entries, `删除 ${entries.length} 个已停用的 key？`);
+});
+elements["select-all"].addEventListener("change", () => {
+  const query = elements["search"].value.trim().toLowerCase();
+  for (const entry of snapshot?.keys ?? []) {
+    if (!`${entry.name} ${entry.key}`.toLowerCase().includes(query)) continue;
+    if (elements["select-all"].checked) selected.add(entry.id);
+    else selected.delete(entry.id);
+  }
+  render();
+});
 elements["cancel-delete"].addEventListener("click", () => elements["delete-dialog"].close());
 elements["delete-form"].addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!deleteTarget || bulkCheck) return;
   elements["confirm-delete"].disabled = true;
   try {
-    const response = await request(`/api/admin/keys/${encodeURIComponent(deleteTarget.id)}`, { method: "DELETE" });
-    revealed.delete(deleteTarget.id);
-    applySnapshot(await response.json());
+    const ids = deleteTarget.map(({ id }) => id);
+    const response = await request("/api/admin/keys/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
+    const next = await response.json();
+    ids.forEach((id) => revealed.delete(id));
+    applySnapshot(next);
     elements["delete-dialog"].close();
-    elements["notice"].textContent = "已删除 key。";
+    elements["notice"].textContent = `已删除 ${next.removed} 个 key。`;
     deleteTarget = null;
   } catch (error) {
     elements["delete-error"].textContent = error.message;

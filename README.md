@@ -23,7 +23,7 @@
 
 - Rotates through available keys in order, with at most 50 upstream calls per key per second
 - Disables a key automatically when upstream returns `401` / `402`, and pauses it and switches to another key on `429`
-- Web admin panel for keys: add, check, search, delete, plus JSONL import and export
+- Web admin panel for keys: add, check, search, delete (one at a time, the selected keys, or every disabled key at once), plus JSONL import and export
 - The admin panel shows how many times clients called the proxy, how many calls succeeded and how many failed, with failures counted per status code, plus a chart of calls per hour (last 24 hours), day (last 30 days) or week (last 12 weeks) in Beijing time (UTC+8)
 - Keys and request counters live in Redis (Upstash), shared by every instance and kept across redeploys
 - Optional Redis-free mode: keys come from an environment variable (see [Running without Redis](#running-without-redis))

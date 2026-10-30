@@ -6,3 +6,4 @@
 .row-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}.check-result{min-width:130px}.check-result.valid{color:#42663c}.check-result.invalid,.check-result.no_credits{color:#a05f4f}.check-time{color:var(--muted);font-size:9px}.key-value-row{flex-wrap:wrap}
 .site-header{gap:16px}.site-header .brand{min-width:0}.site-header .brand-icon,.site-header .brand-divider{flex-shrink:0}.site-header .brand-caption{min-width:0;overflow-wrap:anywhere}.site-header #logout-button{flex-shrink:0;white-space:nowrap}
 @media(max-width:600px){.site-header #logout-button{padding:8px 10px;font-size:10px}}
+.select-cell{width:1%;padding-right:0}.select-cell input{width:15px;height:15px;padding:0;margin:0;accent-color:var(--green);cursor:pointer;vertical-align:middle}.select-cell input:disabled{cursor:wait}.button.danger-text{color:#9b5348}

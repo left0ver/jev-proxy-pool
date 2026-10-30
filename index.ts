@@ -4,7 +4,7 @@ import { z } from "zod";
 import { adminAuthorized, privateJson } from "./lib/http.js";
 import { keyStore, PoolError } from "./lib/key-store.js";
 import { checkKey } from "./lib/key-check.js";
-import { HISTORY_HOURS } from "./lib/key-pool.js";
+import { HISTORY_HOURS, MAX_KEYS } from "./lib/key-pool.js";
 import { POST } from "./lib/systemone.js";
 
 const app = new Hono();
@@ -31,6 +31,11 @@ app.post("/api/admin/keys", async (context) => {
 app.post("/api/admin/keys/import", async (context) => {
   const added = await keyStore.import(await context.req.text());
   return privateJson({ added, ...await keyStore.snapshot() }, 201);
+});
+app.post("/api/admin/keys/delete", async (context) => {
+  const body = z.object({ ids: z.array(z.string().max(128)).min(1).max(MAX_KEYS) }).strict().parse(await context.req.json());
+  const removed = await keyStore.removeMany(body.ids);
+  return privateJson({ removed, ...await keyStore.snapshot() });
 });
 app.delete("/api/admin/keys/:id", async (context) => {
   await keyStore.remove(context.req.param("id"));

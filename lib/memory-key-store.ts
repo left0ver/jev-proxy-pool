@@ -106,6 +106,10 @@ export class MemoryKeyStore implements KeyPool {
     return this.readOnly();
   }
 
+  async removeMany(_ids: string[]): Promise<number> {
+    return this.readOnly();
+  }
+
   private entries(now: number) {
     return [...this.pool].map(([id, state]) => ({
       id,

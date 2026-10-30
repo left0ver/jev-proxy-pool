@@ -11,7 +11,7 @@ process.env.AUTHORIZATION_TOKEN = randomBytes(24).toString("hex");
 const headers = { Authorization: `Basic ${Buffer.from(`admin:${process.env.ADMIN_PASSWORD}`).toString("base64")}`, "Content-Type": "application/json" };
 
 test("管理接口认证、添加、导出、导入和删除", async () => {
-  for (const [path, method] of [["/api/admin/keys", "GET"], ["/api/admin/keys", "POST"], ["/api/admin/keys/export", "GET"], ["/api/admin/keys/import", "POST"], ["/api/admin/keys/missing", "DELETE"], ["/api/admin/keys/missing/check", "POST"]]) {
+  for (const [path, method] of [["/api/admin/keys", "GET"], ["/api/admin/keys", "POST"], ["/api/admin/keys/export", "GET"], ["/api/admin/keys/import", "POST"], ["/api/admin/keys/missing", "DELETE"], ["/api/admin/keys/delete", "POST"], ["/api/admin/keys/missing/check", "POST"]]) {
     assert.equal((await app.request(path, { method })).status, 401);
   }
   assert.equal((await app.request("/api/admin/keys", { headers: { Authorization: `Bearer ${process.env.AUTHORIZATION_TOKEN}` } })).status, 401);
@@ -32,6 +32,13 @@ test("管理接口认证、添加、导出、导入和删除", async () => {
   assert.equal(remove.status, 200);
   assert.equal((await remove.json()).keys.length, 0);
   assert.equal((await app.request(`/api/admin/keys/${created.keys[0].id}`, { method: "DELETE", headers })).status, 404);
+  assert.equal((await app.request("/api/admin/keys/import", { method: "POST", headers, body: document })).status, 201);
+  for (const body of ["{}", JSON.stringify({ ids: [] }), JSON.stringify({ ids: "x" })]) {
+    assert.equal((await app.request("/api/admin/keys/delete", { method: "POST", headers, body })).status, 400);
+  }
+  const bulk = await app.request("/api/admin/keys/delete", { method: "POST", headers, body: JSON.stringify({ ids: [created.keys[0].id, "missing"] }) });
+  assert.equal(bulk.status, 200);
+  assert.deepEqual([(await bulk.json()).removed, (await keyStore.snapshot()).keys.length], [1, 0]);
   assert.equal((await app.request("/api/admin/keys/import", { method: "POST", headers, body: document })).status, 201);
   assert.equal((await app.request("/api/admin/keys/import", { method: "POST", headers, body: "{" })).status, 400);
   assert.equal((await app.request("/api/admin/keys", { method: "POST", headers, body: "{" })).status, 400);
